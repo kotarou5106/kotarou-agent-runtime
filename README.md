@@ -192,16 +192,4 @@ Dashboard 前端源码在 `dashboard/frontend/` 下，构建脚本由仓库根�
 - Dashboard build passed.
 - Project is under active refactoring.
 
-本次 README 重写只调整项目说明文档，没有修改 runtime 代码逻辑。
-
-## Interview Notes
-
-面试中可以重点展开：
-
-- **Agent Loop**: 用户消息如何经过 context、memory、knowledge、prompt、LLM、tool 和 response streaming。
-- **Memory Consolidation**: `PENDING.md`、`HISTORY.md`、`RECENT_CONTEXT.md` 与 `MEMORY.md` 的分层写入策略。
-- **Tool Calling**: 工具注册、发现、执行、结果回传、异常处理和权限边界。
-- **RAG Context Injection**: 知识库检索结果如何作为 `knowledge_context` 进入 prompt，而不是和长期记忆混在一起。
-- **Proactive Scheduling**: 后台任务如何结合状态、规则、记忆和 delivery 做主动触达。
-- **Observability**: Dashboard 如何查看 prompt section、memory、tool call、plugin 和任务状态。
-- **Evaluation**: 如何用 LongMemEval、PersonaMem 和 RAG 评测验证 Agent Runtime 的长期能力。
+Kotarou Agent Runtime is still under active development. The current focus is improving memory quality, tool execution reliability, proactive scheduling, and dashboard observability.
