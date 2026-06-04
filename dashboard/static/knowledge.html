@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document Knowledge - Dashboard</title>
+  <link rel="stylesheet" href="/assets/styles.css">
+  <style>
+    body { margin: 0; padding: 24px; background: var(--bg); color: var(--text); font-family: var(--font-sans); }
+    .knowledge-shell { max-width: 1440px; margin: 0 auto; }
+    .knowledge-page-head { display: flex; justify-content: space-between; gap: 16px; align-items: center; margin-bottom: 16px; }
+    .knowledge-page-head h1 { margin: 0; font-size: 22px; }
+    .knowledge-page-head a { color: var(--accent); text-decoration: none; }
+    .knowledge-panel { height: calc(100vh - 110px); border: 1px solid var(--line); border-radius: 8px; background: var(--panel-soft); }
+  </style>
+</head>
+<body>
+  <div class="knowledge-shell">
+    <div class="knowledge-page-head">
+      <div>
+        <h1>Document Knowledge（文档知识库）</h1>
+        <div id="summary" class="muted-text">Loading...</div>
+      </div>
+      <a href="/">返回 Dashboard</a>
+    </div>
+    <div class="knowledge-panel">
+      <section class="knowledge-column">
+        <div class="detail-label">Documents</div>
+        <div id="documents"></div>
+      </section>
+      <section class="knowledge-column">
+        <div class="detail-label">Chunks</div>
+        <div id="chunks"></div>
+      </section>
+      <section class="knowledge-column">
+        <div class="detail-label">Retrieval Events</div>
+        <div id="events"></div>
+      </section>
+    </div>
+  </div>
+  <script>
+    const state = { activeDocumentId: "" };
+    const short = (value) => value ? String(value).replace("T", " ").slice(0, 19) : "";
+    const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+    async function getJson(url) {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(await response.text());
+      return response.json();
+    }
+    function card(html, active = false, onClick = "") {
+      return `<button class="knowledge-card ${active ? "active" : ""}" type="button" ${onClick}>${html}</button>`;
+    }
+    async function load() {
+      const docs = await getJson("/api/dashboard/knowledge/documents");
+      const documents = docs.items || [];
+      if (!state.activeDocumentId && documents[0]) state.activeDocumentId = documents[0].id;
+      document.getElementById("summary").textContent = `${documents.length} documents · vector backend: ${docs.vector_backend || "unknown"}`;
+      document.getElementById("documents").innerHTML = documents.length ? documents.map((doc) => card(`
+        <div class="knowledge-title">${escapeHtml(doc.title || doc.source_path)}</div>
+        <div class="knowledge-path">${escapeHtml(doc.source_path)}</div>
+        <div class="knowledge-meta">${escapeHtml(doc.file_type)} · ${doc.chunk_count || 0} chunks · ${short(doc.updated_at)}</div>
+      `, doc.id === state.activeDocumentId, `onclick="selectDoc('${doc.id}')"`)).join("") : `<div class="empty-state">暂无文档索引。</div>`;
+      const chunkUrl = `/api/dashboard/knowledge/chunks?limit=100${state.activeDocumentId ? `&document_id=${encodeURIComponent(state.activeDocumentId)}` : ""}`;
+      const [chunks, events] = await Promise.all([
+        getJson(chunkUrl),
+        getJson("/api/dashboard/knowledge/retrieval-events?limit=50"),
+      ]);
+      document.getElementById("chunks").innerHTML = (chunks.items || []).length ? chunks.items.map((chunk) => `
+        <article class="knowledge-card">
+          <div class="knowledge-title">#${chunk.chunk_index} ${escapeHtml(chunk.heading_path || chunk.title || chunk.id)}</div>
+          <div class="knowledge-meta">行 ${chunk.line_start || 0}-${chunk.line_end || 0} · ${chunk.token_count || 0} tokens</div>
+          <div class="knowledge-snippet">${escapeHtml(chunk.text)}</div>
+        </article>
+      `).join("") : `<div class="empty-state">暂无 chunk。</div>`;
+      document.getElementById("events").innerHTML = (events.items || []).length ? events.items.map((event) => `
+        <article class="knowledge-card">
+          <div class="knowledge-title">${escapeHtml(event.query)}</div>
+          <div class="knowledge-meta">${short(event.created_at)} · retrieved ${(event.retrieved_chunk_ids || []).length} · injected ${(event.injected_chunk_ids || []).length}</div>
+          ${event.trace_id ? `<div class="knowledge-path">trace: ${escapeHtml(event.trace_id)}</div>` : ""}
+        </article>
+      `).join("") : `<div class="empty-state">暂无检索记录。</div>`;
+    }
+    window.selectDoc = (id) => { state.activeDocumentId = id; void load(); };
+    void load().catch((error) => {
+      document.getElementById("summary").textContent = `加载失败：${error.message || error}`;
+    });
+  </script>
+</body>
+</html>

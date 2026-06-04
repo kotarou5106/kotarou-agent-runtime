@@ -1,0 +1,24 @@
+services:
+  kotarou-debug:
+    build:
+      context: ../../..
+      dockerfile: scripts/docker/debug/Dockerfile
+    image: kotarou-agent-debug:latest
+    working_dir: /app
+    environment:
+      KOTAROU_DEBUG_CONFIG: /sandbox/config.toml
+      KOTAROU_DEBUG_WORKSPACE: /sandbox/workspace
+      KOTAROU_DASHBOARD_HOST: 0.0.0.0
+      KOTAROU_DASHBOARD_PORT: "2236"
+      KOTAROU_HOST_GID: "${GID:-1000}"
+      KOTAROU_HOST_UID: "${UID:-1000}"
+      KOTAROU_DEBUG_PROFILE: "${KOTAROU_DEBUG_PROFILE:-default}"
+      HOME: /sandbox/home
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - ../../..:/app
+      - ./profiles/${KOTAROU_DEBUG_PROFILE:-default}:/sandbox
+    ports:
+      - "2237:2236"
+    stdin_open: true
+    tty: true
