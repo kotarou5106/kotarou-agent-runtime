@@ -109,6 +109,13 @@ class WiringConfig:
 
 
 @dataclass
+class OrchestrationConfig:
+    backend: str = "native"
+    interrupt_high_risk_tools: bool = True
+    checkpoint_enabled: bool = True
+
+
+@dataclass
 class Config:
     provider: str
     model: str
@@ -141,6 +148,7 @@ class Config:
     dev_mode: bool = False
     peer_agents: list[PeerAgentConfig] = field(default_factory=list)
     wiring: WiringConfig = field(default_factory=WiringConfig)
+    orchestration: OrchestrationConfig = field(default_factory=OrchestrationConfig)
 
     @classmethod
     def load(cls, path: str | Path = "config.toml") -> Config:
@@ -156,6 +164,7 @@ __all__ = [
     "KnowledgeConfig",
     "MemoryConfig",
     "MemoryEmbeddingConfig",
+    "OrchestrationConfig",
     "PeerAgentConfig",
     "QQChannelConfig",
     "QQBotChannelConfig",

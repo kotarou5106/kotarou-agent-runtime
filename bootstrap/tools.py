@@ -427,6 +427,41 @@ def _build_loop_deps(
             knowledge_service,
             top_k=config.knowledge.top_k,
         )
+    reasoner = None
+    orchestration = getattr(config, "orchestration", None)
+    if str(getattr(orchestration, "backend", "native")) == "langgraph":
+        from agent_runtime.langgraph_runtime import LangGraphReasoner
+        from agent_runtime.langgraph_runtime.interrupts import ToolInterruptPolicy
+        from agent_runtime.core.runtime_support import ToolDiscoveryState
+
+        reasoner = LangGraphReasoner(
+            llm=llm_services,
+            llm_config=LLMConfig(
+                model=config.agent_model or config.model,
+                light_model=config.light_model,
+                max_iterations=config.max_iterations,
+                max_tokens=config.max_tokens,
+                tool_search_enabled=config.tool_search_enabled,
+                multimodal=bool(getattr(config, "multimodal", True)),
+                vl_available=bool(getattr(config, "vl_model", "")),
+            ),
+            tools=tools,
+            discovery=ToolDiscoveryState(),
+            tool_search_enabled=config.tool_search_enabled,
+            memory_window=config.memory_window,
+            context=context if isinstance(context, ContextBuilder) else None,
+            session_manager=session_manager,
+            event_bus=event_bus,
+            workspace=workspace,
+            interrupt_policy=ToolInterruptPolicy(
+                enabled=bool(
+                    getattr(orchestration, "interrupt_high_risk_tools", True)
+                )
+            ),
+            checkpoint_persistent=(
+                bool(getattr(orchestration, "checkpoint_enabled", True))
+            ),
+        )
 
     return AgentLoopDeps(
         bus=bus,
@@ -445,6 +480,7 @@ def _build_loop_deps(
         llm_services=llm_services,
         memory_services=memory_services,
         session_services=session_services,
+        reasoner=reasoner,
     )
 
 

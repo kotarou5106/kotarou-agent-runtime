@@ -20,6 +20,7 @@ from agent_runtime.config_models import (
     KnowledgeConfig,
     MemoryConfig,
     MemoryEmbeddingConfig,
+    OrchestrationConfig,
     PeerAgentConfig,
     QQBotChannelConfig,
     QQBotGroupConfig,
@@ -82,6 +83,7 @@ def load_config(path: str | Path = "config.toml") -> Config:
     agent_cfg = _as_dict(data.get("agent"))
     agent_context = _as_dict(agent_cfg.get("context"))
     agent_tools = _as_dict(agent_cfg.get("tools"))
+    agent_orchestration = _as_dict(agent_cfg.get("orchestration"))
     agent_maintenance = _as_dict(agent_cfg.get("maintenance"))
     provider = str(llm.get("provider") or data["provider"])
     channels = _load_channels_config(data)
@@ -161,6 +163,7 @@ def load_config(path: str | Path = "config.toml") -> Config:
         vl_base_url=str(llm_vl.get("base_url") or data.get("vl_base_url", "")),
         peer_agents=peer_agents,
         wiring=wiring,
+        orchestration=_load_orchestration_config(agent_orchestration),
     )
 
 
@@ -254,6 +257,21 @@ def _load_channels_config(data: dict) -> ChannelsConfig:
     )
     channels.socket = _normalize_cli_socket_endpoint(channels.socket)
     return channels
+
+
+def _load_orchestration_config(data: dict) -> OrchestrationConfig:
+    backend = str(data.get("backend", "native") or "native").strip().lower()
+    if backend not in {"native", "langgraph"}:
+        raise ValueError(
+            "agent.orchestration.backend must be one of: native, langgraph"
+        )
+    return OrchestrationConfig(
+        backend=backend,
+        interrupt_high_risk_tools=bool(
+            data.get("interrupt_high_risk_tools", True)
+        ),
+        checkpoint_enabled=bool(data.get("checkpoint_enabled", True)),
+    )
 
 
 def _load_proactive_config(data: dict) -> ProactiveConfig:
