@@ -57,6 +57,9 @@ class KnowledgeStore:
               line_end INTEGER,
               token_count INTEGER,
               content_hash TEXT NOT NULL,
+              parent_id TEXT,
+              chunk_type TEXT NOT NULL DEFAULT 'child',
+              metadata_json TEXT,
               created_at TEXT NOT NULL,
               FOREIGN KEY(document_id) REFERENCES documents(id)
             );
@@ -78,6 +81,7 @@ class KnowledgeStore:
               query TEXT NOT NULL,
               retrieved_chunk_ids TEXT NOT NULL,
               injected_chunk_ids TEXT NOT NULL,
+              trace_json TEXT,
               created_at TEXT NOT NULL
             );
 
@@ -92,7 +96,33 @@ class KnowledgeStore:
             );
             """
         )
+        self._ensure_chunk_parent_child_columns()
+        self._ensure_retrieval_event_trace_column()
         self._db.commit()
+
+    def _ensure_chunk_parent_child_columns(self) -> None:
+        columns = {
+            str(row["name"])
+            for row in self._db.execute("PRAGMA table_info(document_chunks)")
+        }
+        if "parent_id" not in columns:
+            self._db.execute("ALTER TABLE document_chunks ADD COLUMN parent_id TEXT")
+        if "chunk_type" not in columns:
+            self._db.execute(
+                "ALTER TABLE document_chunks ADD COLUMN chunk_type TEXT NOT NULL DEFAULT 'child'"
+            )
+        if "metadata_json" not in columns:
+            self._db.execute("ALTER TABLE document_chunks ADD COLUMN metadata_json TEXT")
+
+    def _ensure_retrieval_event_trace_column(self) -> None:
+        columns = {
+            str(row["name"])
+            for row in self._db.execute("PRAGMA table_info(knowledge_retrieval_events)")
+        }
+        if "trace_json" not in columns:
+            self._db.execute(
+                "ALTER TABLE knowledge_retrieval_events ADD COLUMN trace_json TEXT"
+            )
 
     @property
     def vector_backend(self) -> str:
@@ -219,9 +249,10 @@ class KnowledgeStore:
                     """
                     INSERT INTO document_chunks (
                       id, document_id, chunk_index, text, heading_path,
-                      line_start, line_end, token_count, content_hash, created_at
+                      line_start, line_end, token_count, content_hash,
+                      parent_id, chunk_type, metadata_json, created_at
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         chunk.id,
@@ -233,6 +264,9 @@ class KnowledgeStore:
                         chunk.line_end,
                         chunk.token_count,
                         chunk.content_hash,
+                        chunk.parent_id,
+                        chunk.chunk_type,
+                        json.dumps(chunk.metadata, ensure_ascii=False),
                         now,
                     ),
                 )
@@ -356,6 +390,33 @@ class KnowledgeStore:
             ).fetchall()
         return [dict(row) for row in rows]
 
+    def get_chunk(self, chunk_id: str) -> KnowledgeChunkHit | None:
+        with self._lock:
+            row = self._db.execute(
+                """
+                SELECT c.*, d.source_path, d.title
+                FROM document_chunks c
+                JOIN documents d ON d.id = c.document_id
+                WHERE c.id = ? AND d.status = 'active'
+                """,
+                (chunk_id,),
+            ).fetchone()
+        return _row_to_hit(row, score=0.0, lanes=()) if row else None
+
+    def get_parent_for_child(self, child_id: str) -> KnowledgeChunkHit | None:
+        with self._lock:
+            row = self._db.execute(
+                """
+                SELECT p.*, d.source_path, d.title
+                FROM document_chunks c
+                JOIN document_chunks p ON p.id = c.parent_id
+                JOIN documents d ON d.id = p.document_id
+                WHERE c.id = ? AND d.status = 'active'
+                """,
+                (child_id,),
+            ).fetchone()
+        return _row_to_hit(row, score=0.0, lanes=()) if row else None
+
     def vector_search(
         self,
         *,
@@ -382,6 +443,7 @@ class KnowledgeStore:
                 JOIN document_chunks c ON c.id = v.chunk_id
                 JOIN documents d ON d.id = c.document_id
                 WHERE d.status = 'active'
+                  AND COALESCE(c.chunk_type, 'child') != 'parent'
                 """
             ).fetchall()
         hits: list[KnowledgeChunkHit] = []
@@ -413,6 +475,7 @@ class KnowledgeStore:
                 JOIN document_chunks c ON c.id = r.chunk_id
                 JOIN documents d ON d.id = c.document_id
                 WHERE v.embedding MATCH ? AND k = ? AND d.status = 'active'
+                  AND COALESCE(c.chunk_type, 'child') != 'parent'
                 ORDER BY v.distance
                 """,
                 (self._sqlite_vec.serialize_float32(query_vec), max(1, int(top_k))),
@@ -427,9 +490,8 @@ class KnowledgeStore:
         return hits[: max(1, int(top_k))]
 
     def keyword_search(self, query: str, *, top_k: int = 12) -> list[KnowledgeChunkHit]:
-        terms = _extract_terms(query)
-        if not terms:
-            return []
+        from knowledge_system.retrieval.bm25 import bm25_search
+
         with self._lock:
             rows = self._db.execute(
                 """
@@ -437,25 +499,10 @@ class KnowledgeStore:
                 FROM document_chunks c
                 JOIN documents d ON d.id = c.document_id
                 WHERE d.status = 'active'
+                  AND COALESCE(c.chunk_type, 'child') != 'parent'
                 """
             ).fetchall()
-        hits: list[KnowledgeChunkHit] = []
-        for row in rows:
-            haystack = " ".join(
-                [
-                    str(row["text"] or ""),
-                    str(row["heading_path"] or ""),
-                    str(row["source_path"] or ""),
-                    str(row["title"] or ""),
-                ]
-            ).lower()
-            matched = sum(1 for term in terms if term in haystack)
-            if matched <= 0:
-                continue
-            score = matched / max(1, len(terms))
-            hits.append(_row_to_hit(row, score=score, lanes=("keyword",)))
-        hits.sort(key=lambda item: item.score, reverse=True)
-        return hits[: max(1, int(top_k))]
+        return bm25_search([dict(row) for row in rows], query, top_k=max(1, int(top_k)))
 
     def log_retrieval_event(
         self,
@@ -465,14 +512,16 @@ class KnowledgeStore:
         query: str,
         retrieved_chunk_ids: list[str],
         injected_chunk_ids: list[str],
+        trace: dict[str, Any] | None = None,
     ) -> None:
         with self._lock:
             self._db.execute(
                 """
                 INSERT INTO knowledge_retrieval_events (
-                  id, trace_id, query, retrieved_chunk_ids, injected_chunk_ids, created_at
+                  id, trace_id, query, retrieved_chunk_ids, injected_chunk_ids,
+                  trace_json, created_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     event_id,
@@ -480,6 +529,7 @@ class KnowledgeStore:
                     query,
                     json.dumps(retrieved_chunk_ids),
                     json.dumps(injected_chunk_ids),
+                    json.dumps(trace or {}, ensure_ascii=False),
                     _utcnow(),
                 ),
             )
@@ -504,11 +554,21 @@ class KnowledgeStore:
                     item[key] = json.loads(str(item.get(key) or "[]"))
                 except json.JSONDecodeError:
                     item[key] = []
+            try:
+                item["trace"] = json.loads(str(item.get("trace_json") or "{}"))
+            except json.JSONDecodeError:
+                item["trace"] = {}
+            item.pop("trace_json", None)
             items.append(item)
         return items
 
 
 def _row_to_hit(row: sqlite3.Row, *, score: float, lanes: tuple[str, ...]) -> KnowledgeChunkHit:
+    metadata: dict[str, object] = {}
+    try:
+        metadata = json.loads(str(row["metadata_json"] or "{}"))
+    except Exception:
+        metadata = {}
     return KnowledgeChunkHit(
         chunk_id=str(row["id"]),
         document_id=str(row["document_id"]),
@@ -520,6 +580,9 @@ def _row_to_hit(row: sqlite3.Row, *, score: float, lanes: tuple[str, ...]) -> Kn
         line_start=int(row["line_start"] or 0),
         line_end=int(row["line_end"] or 0),
         lanes=lanes,
+        parent_id=str(row["parent_id"] or "") or None,
+        chunk_type=str(row["chunk_type"] or "child"),
+        metadata=metadata,
     )
 
 
@@ -532,16 +595,6 @@ def _cosine(a: list[float], b: list[float]) -> float:
     if na <= 0.0 or nb <= 0.0:
         return 0.0
     return dot / (na * nb)
-
-
-def _extract_terms(query: str) -> list[str]:
-    raw = str(query or "").lower()
-    terms = [
-        token
-        for token in raw.replace("/", " ").replace("_", " ").replace("-", " ").split()
-        if len(token) >= 2
-    ]
-    return list(dict.fromkeys(terms))
 
 
 def _utcnow() -> str:

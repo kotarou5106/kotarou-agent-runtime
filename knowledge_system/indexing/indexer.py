@@ -44,11 +44,14 @@ class KnowledgeIndexer:
 
         chunks = self._chunker.chunk(document_id, document)
         vectors: dict[str, list[float]] = {}
-        if self._embedder is not None and chunks:
-            embedded = await self._embedder.embed_texts([chunk.text for chunk in chunks])
+        searchable_chunks = [
+            chunk for chunk in chunks if str(chunk.chunk_type or "child") != "parent"
+        ]
+        if self._embedder is not None and searchable_chunks:
+            embedded = await self._embedder.embed_texts([chunk.text for chunk in searchable_chunks])
             vectors = {
                 chunk.id: vector
-                for chunk, vector in zip(chunks, embedded)
+                for chunk, vector in zip(searchable_chunks, embedded)
                 if vector
             }
         self._store.upsert_document_with_chunks(

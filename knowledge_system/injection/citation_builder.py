@@ -16,6 +16,8 @@ def build_citations(hits: list[KnowledgeChunkHit]) -> list[KnowledgeCitation]:
                 heading_path=hit.heading_path,
                 line_start=hit.line_start,
                 line_end=hit.line_end,
+                parent_id=hit.parent_id,
+                matched_child_ids=hit.matched_child_ids,
             )
         )
     return citations

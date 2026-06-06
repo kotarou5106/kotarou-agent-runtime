@@ -11,8 +11,32 @@ Kotarou Agent Runtime 关注的不是“把大模型接到一个聊天窗口”�
 - Tool Calling
 - Plugin System
 - Proactive Tasks
-- RAG / Knowledge Retrieval
 - LangGraph Workflow Orchestration
+- Hybrid RAG Retrieval
+  - Vector Search
+  - BM25 Sparse Retrieval
+  - Query Rewrite
+  - Reciprocal Rank Fusion, RRF
+  - Optional LLM Reranking
+  - Parent-Child Indexing
+  - Citation Validation
+- Knowledge RAG Observability
+  - Query Rewrite Trace
+  - Vector Search Raw Hits
+  - BM25 Raw Hits
+  - RRF Ranking Trace
+  - Reranking Trace
+  - Parent-child Expansion Trace
+  - Citation Validation Trace
+  - Prompt Injection Trace
+- Knowledge Retrieval Evaluation
+  - BM25 vs Vector vs Hybrid RRF comparison
+  - Recall@K
+  - Precision@K
+  - HitRate@K
+  - MRR@K
+  - NDCG@K
+  - JSON / Markdown evaluation report
 - Agent Evaluation & Constraint Harness
 - Token Cost Evaluation
 - Dashboard Observability
@@ -24,12 +48,15 @@ Kotarou Agent Runtime 关注的不是“把大模型接到一个聊天窗口”�
 - **Agent Evaluation & Constraint Harness**: supports scenarios, assertions, trace recorder, JSON / Markdown reports, and native-vs-LangGraph backend comparison.
 - **Offline token cost evaluation**: captures messages and tool schemas before `provider.chat(...)` without requiring a real API key.
 - **Prompt / tool schema optimization**: reduced always-on tools from 19 to 6 while keeping deferred tools discoverable through tool search.
+- **Hybrid RAG Retrieval**: rewrites knowledge queries, retrieves with vector search and BM25 sparse retrieval, merges ranked chunks with Reciprocal Rank Fusion, optionally reranks candidates with an LLM reranker, expands child hits to parent context chunks, and injects citation-aware context into the main Agent prompt.
+- **Knowledge RAG Observability**: stores lightweight retrieval traces with query variants, vector / BM25 raw hits, RRF rankings, citation validation, prompt injection selections, warnings, errors, and stage timings for dashboard inspection.
+- **Knowledge Retrieval Evaluation**: runs lightweight internal retrieval benchmarks comparing BM25, vector search, and Hybrid RRF with Recall@K, Precision@K, HitRate@K, MRR@K, and NDCG@K reports.
 - **Offline reproducible tests**: fake provider and dummy tools validate tool-use, interrupt, trace, report, comparison, and cost behavior without real API requests.
-- **Test coverage**: full local test suite currently passes with `1251 passed`.
+- **Test coverage**: full local test suite currently passes with `1284 passed`.
 
 ## Test Results
 
-- Full tests: `1251 passed`
+- Full tests: `1284 passed`
 - LangGraph runtime tests: passed
 - Harness tests: passed
 - No real API request required for harness / cost tests
@@ -100,7 +127,22 @@ Kotarou Agent Runtime 使用 Markdown 记忆层承载长期状态，默认位于
 
 `knowledge_system/` 负责把外部知识变成可注入的 runtime context。知识内容会经过加载、切分、embedding、索引和检索；当用户问题需要知识库支持时，检索结果会以 `knowledge_context` 的形式进入 prompt assembly。
 
-这里的 RAG 不是孤立功能，而是 Agent Runtime 主链路的一部分。知识检索结果会和 memory context、recent context、tool context 一起参与 LLM reasoning；Dashboard 和事件记录也可以帮助观察检索内容是否正确进入了上下文。
+当前 Knowledge RAG pipeline:
+
+```text
+query rewrite
+  -> vector retrieval + BM25 retrieval
+  -> Reciprocal Rank Fusion, RRF
+  -> optional LLM reranking
+  -> parent-child expansion
+  -> citation-aware prompt injection
+  -> main Agent LLM response
+  -> retrieval trace for dashboard observability
+```
+
+这里的 RAG 不是孤立功能，也不是独立 QA generation chain，而是 Agent Runtime 主链路的一部分。知识检索结果会和 memory context、recent context、tool context 一起参与 LLM reasoning；Dashboard 和事件记录也可以帮助观察检索内容是否正确进入了上下文。
+
+Reranking 是 optional：没有配置 LLM provider 或关闭 reranking 时会使用 no-op reranker，保持原始排序。Parent-child indexing 默认兼容旧数据：child chunks 用于 vector / BM25 检索，parent chunks 用于最终上下文注入；如果旧 chunk 没有 `parent_id` 或找不到 parent，会 fallback 为原 chunk。Trace 中会记录 reranking 输入/输出、parent-child child-to-parent mapping、fallback count 和最终 parent hits。
 
 ## Tool Calling
 
@@ -161,6 +203,17 @@ Dashboard 用于观察 Agent Runtime 的实际行为，而不是只展示静态�
 
 评测系统的价值在于把“感觉 Agent 更聪明了”变成可重复运行的检查项，尤其适合展示 memory consolidation、RAG context injection 和多轮一致性。
 
+Knowledge Retrieval Evaluation 提供项目内部的轻量检索评测，不做 final answer generation evaluation。它使用固定 dataset 对 BM25、Vector Search 和 Hybrid RRF 进行对比，输出 Recall@K、Precision@K、HitRate@K、MRR@K 和 NDCG@K，并生成 JSON / Markdown 报告。
+
+```bash
+python scripts/evaluate_knowledge_retrieval.py
+```
+
+默认报告输出到：
+
+- `reports/knowledge_retrieval_eval.json`
+- `reports/knowledge_retrieval_eval.md`
+
 ## How to Run
 
 需要 Python 3.12 和 `uv`。
@@ -209,7 +262,7 @@ Dashboard 前端源码在 `dashboard/frontend/` 下，构建脚本由仓库根�
 ## Current Status
 
 - `compileall` passed.
-- `pytest` 1251 passed.
+- `pytest` 1284 passed.
 - LangGraph runtime tests passed.
 - Evaluation harness and token cost tests passed without real API requests.
 - Dashboard build passed.

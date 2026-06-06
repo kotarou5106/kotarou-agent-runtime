@@ -26,6 +26,9 @@ class DocumentChunk:
     line_end: int = 0
     token_count: int = 0
     content_hash: str = ""
+    parent_id: str | None = None
+    chunk_type: str = "child"
+    metadata: dict[str, object] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -51,6 +54,8 @@ class KnowledgeCitation:
     heading_path: str = ""
     line_start: int = 0
     line_end: int = 0
+    parent_id: str | None = None
+    matched_child_ids: tuple[str, ...] = field(default_factory=tuple)
 
 
 @dataclass(frozen=True)
@@ -65,6 +70,15 @@ class KnowledgeChunkHit:
     line_start: int = 0
     line_end: int = 0
     lanes: tuple[str, ...] = field(default_factory=tuple)
+    sources: tuple[str, ...] = field(default_factory=tuple)
+    vector_rank: int | None = None
+    bm25_rank: int | None = None
+    rrf_score: float | None = None
+    rerank_score: float | None = None
+    parent_id: str | None = None
+    chunk_type: str = "child"
+    matched_child_ids: tuple[str, ...] = field(default_factory=tuple)
+    metadata: dict[str, object] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
