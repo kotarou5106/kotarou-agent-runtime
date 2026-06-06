@@ -1,41 +1,54 @@
-# Kotarou Agent Runtime
+# Personal AI Agent Runtime
 
-Kotarou Agent Runtime 是一个 Personal AI Agent Runtime / 个人智能体运行时系统。它关注的不是“把大模型接到一个聊天窗口”，而是把对话、记忆、工具、插件、知识检索、主动任务、可观测性和评测放进同一套可运行的工程链路里。
+A personal AI Agent runtime with multi-turn chat, long-term memory, tool calling, plugin system, proactive tasks, LangGraph workflow orchestration, evaluation harness, token cost evaluation, and dashboard observability.
 
-这个项目适合展示一个 Agent Runtime 如何长期运行：用户消息进入系统后，会经过上下文构建、记忆检索、知识检索、prompt 组装、LLM 推理、工具调用、流式回复、记忆沉淀和事件记录；后台系统还能调度主动任务，并通过 Dashboard 观察运行时状态。
+Kotarou Agent Runtime 关注的不是“把大模型接到一个聊天窗口”，而是把对话、记忆、工具、插件、知识检索、主动任务、可观测性和评测放进同一套可运行的工程链路里。
 
-## Backend / LangGraph 状态
+## Core Capabilities
 
-- **Native backend 默认不变**：默认仍使用项目自研的 `AgentLoop + PassiveTurnPipeline + DefaultReasoner` 主链路，现有 memory、RAG、tool hooks、plugin lifecycle、session persistence 和 outbound dispatch 行为保持兼容。
-- **LangGraph backend 可选启用**：可在 `config.toml` 中设置 `agent.orchestration.backend = "langgraph"`，作为现有 runtime 的 workflow orchestration backend，而不是把项目改成 LangGraph demo。
-- **LangGraph 接管 LLM/tool loop orchestration**：LangGraph backend 将 LLM reasoning、tool risk gate、tool execution、after-step、finalize / summarize 拆成 StateGraph 节点；上下文准备、记忆/知识检索、prompt render、after reasoning、after turn 仍复用原 runtime。
-- **Checkpoint / interrupt policy**：LangGraph backend 支持 checkpoint，并对 write / external-side-effect / shell / message_push / schedule / memory mutation / spawn 等高风险工具提供 interrupt policy，用于 human-in-the-loop 审批。
-- **测试结果**：LangGraph 专项测试 `5 passed, 0 skipped, 0 failed`；当前全量测试 `1241 passed in 14.80s`。
+- Multi-turn Chat
+- Long-term Memory
+- Tool Calling
+- Plugin System
+- Proactive Tasks
+- RAG / Knowledge Retrieval
+- LangGraph Workflow Orchestration
+- Agent Evaluation & Constraint Harness
+- Token Cost Evaluation
+- Dashboard Observability
 
-## 项目定位
+## Engineering Highlights
 
-Kotarou Agent Runtime 的目标是实现一个可扩展的个人 AI Agent 底座，而不是一个普通 RAG Demo 或单轮问答机器人。
+- **Native / LangGraph dual backend**: native backend remains the default; LangGraph is an optional workflow orchestration backend.
+- **LangGraph StateGraph orchestration**: introduced LangGraph workflow orchestration as an optional backend to handle the LLM / tool loop, while reusing the existing context, memory, retrieval, tool registry, and lifecycle modules.
+- **Agent Evaluation & Constraint Harness**: supports scenarios, assertions, trace recorder, JSON / Markdown reports, and native-vs-LangGraph backend comparison.
+- **Offline token cost evaluation**: captures messages and tool schemas before `provider.chat(...)` without requiring a real API key.
+- **Prompt / tool schema optimization**: reduced always-on tools from 19 to 6 while keeping deferred tools discoverable through tool search.
+- **Offline reproducible tests**: fake provider and dummy tools validate tool-use, interrupt, trace, report, comparison, and cost behavior without real API requests.
+- **Test coverage**: full local test suite currently passes with `1251 passed`.
 
-它解决的问题包括：
+## Test Results
 
-- 如何让 Agent 在多轮对话中保持稳定上下文，而不是每轮重新开始。
-- 如何把长期记忆、近期上下文和检索结果分层管理，避免所有信息无差别塞进 prompt。
-- 如何让 LLM 在需要时发现并调用工具，并把工具结果带回推理链路。
-- 如何通过插件扩展运行时能力，而不是把所有功能硬编码进主循环。
-- 如何让后台任务、主动提醒、知识库检索和用户对话共享同一套 runtime 基础设施。
-- 如何用 Dashboard、事件日志和评测系统观察 Agent 的行为质量。
+- Full tests: `1251 passed`
+- LangGraph runtime tests: passed
+- Harness tests: passed
+- No real API request required for harness / cost tests
 
-## 核心能力
+## Token Cost Optimization
 
-- **Multi-turn Conversation**: 支持会话状态、上下文构建、流式响应、对话历史持久化和运行时事件记录。
-- **Long-term Memory**: 将稳定用户事实、Agent 自我模型、时间线事件、近期摘要和待归档事实拆分存储。
-- **Tool Calling**: 提供工具注册、工具发现、工具执行、结果回传、错误处理和工具调用边界。
-- **Plugin System**: 插件可以注册工具、监听 lifecycle、扩展 Dashboard panel，并参与 runtime 的扩展点。
-- **RAG / Knowledge Retrieval**: 知识库内容经过加载、切分、索引、检索和注入，作为 `knowledge_context` 进入 prompt。
-- **Proactive Tasks**: 后台任务可以基于信息源、规则、记忆和运行时状态判断是否需要主动触达用户。
-- **Dashboard Observability**: 提供 session、prompt section、memory、plugin、proactive task、tool call 等运行时视图。
-- **Evaluation System**: 包含 LongMemEval、PersonaMem、RAG 相关评测和 benchmark runtime。
-- **Safety / Permission Boundary**: 工具调用、shell 行为、循环保护、undo/recovery 等模块共同约束运行边界。
+| Item | Before | After |
+| --- | ---: | ---: |
+| system prompt | 11,782 chars | 5,173 chars |
+| messages JSON | 12,934 chars | 5,590 chars |
+| tools schema JSON | 16,635 chars | 3,316 chars |
+| always-on tools | 19 | 6 |
+| estimated input tokens | 9,856 | 2,968 |
+
+## Architecture Notes
+
+- LangGraph workflow: `docs/architecture/langgraph_workflow.md`
+- Evaluation harness: `docs/architecture/evaluation_harness.md`
+- Token cost optimization: `docs/architecture/token_cost_optimization.md`
 
 ## Runtime Architecture
 
@@ -196,7 +209,9 @@ Dashboard 前端源码在 `dashboard/frontend/` 下，构建脚本由仓库根�
 ## Current Status
 
 - `compileall` passed.
-- `pytest` 1236 passed.
+- `pytest` 1251 passed.
+- LangGraph runtime tests passed.
+- Evaluation harness and token cost tests passed without real API requests.
 - Dashboard build passed.
 - Project is under active refactoring.
 
