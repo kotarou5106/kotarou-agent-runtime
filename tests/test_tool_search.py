@@ -152,14 +152,17 @@ def _make_registry() -> ToolRegistry:
     return reg
 
 
-def test_registry_adds_model_description_for_progress() -> None:
+def test_registry_adds_model_description_only_for_progress_tools() -> None:
     reg = ToolRegistry()
     reg.register(_PathOnlyTool())
+    reg.register(_StubTool("write_file", "写文件"), risk="write")
 
-    schema = reg.get_schemas(names={"path_only"})[0]["function"]["parameters"]
+    normal_schema = reg.get_schemas(names={"path_only"})[0]["function"]["parameters"]
+    write_schema = reg.get_schemas(names={"write_file"})[0]["function"]["parameters"]
 
-    assert "description" in schema["properties"]
-    assert "description" in schema["required"]
+    assert "description" not in normal_schema["properties"]
+    assert "description" in write_schema["properties"]
+    assert "description" not in write_schema.get("required", [])
     assert "description" not in _PathOnlyTool.parameters["properties"]
 
 

@@ -73,7 +73,9 @@ def test_register_meta_tool_helpers_mark_expected_tools_always_on():
 
     always_on = tools.get_always_on_names()
     assert isinstance(push_tool, MessagePushTool)
-    assert set(META_TOOLBOX_NAMES) - {"memorize"} <= always_on
+    assert {"tool_search", "recall_memory", "web_search", "web_fetch", "read_file", "list_dir"} <= always_on
+    assert {"shell", "write_file", "edit_file", "message_push", "fetch_messages", "search_messages", "forget_memory"}.isdisjoint(always_on)
+    assert set(META_TOOLBOX_NAMES) - {"memorize"} <= tools.get_registered_names()
 
 
 def test_register_memory_meta_tools_rejects_duplicate_names():

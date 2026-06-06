@@ -26,19 +26,19 @@ def register_common_meta_tools(
     tools.register(ToolSearchTool(tools), always_on=True, risk="read-only")
     tools.register(
         ShellTool(),
-        always_on=True,
+        always_on=False,
         risk="external-side-effect",
         search_hint="终端 脚本 bash 命令",
     )
     tools.register(
         ShellTaskOutputTool(),
-        always_on=True,
+        always_on=False,
         risk="read-only",
         search_hint="后台任务输出 task_output 进程日志",
     )
     tools.register(
         ShellTaskStopTool(),
-        always_on=True,
+        always_on=False,
         risk="external-side-effect",
         search_hint="停止后台任务 task_stop 杀进程",
     )
@@ -67,30 +67,30 @@ def register_common_meta_tools(
     )
     tools.register(
         FetchMessagesTool(session_store),
-        always_on=True,
+        always_on=False,
         risk="read-only",
         search_hint="消息回溯 按ID查对话原文 source_ref",
     )
     tools.register(
         SearchMessagesTool(session_store),
-        always_on=True,
+        always_on=False,
         risk="read-only",
         search_hint="你之前说 聊过什么 历史对话",
     )
     resolved_push_tool = push_tool or MessagePushTool()
     tools.register(
         resolved_push_tool,
-        always_on=True,
+        always_on=False,
         risk="external-side-effect",
     )
     tools.register(
         WriteFileTool(),
-        always_on=True,
+        always_on=False,
         risk="write",
     )
     tools.register(
         EditFileTool(),
-        always_on=True,
+        always_on=False,
         risk="write",
     )
     return resolved_push_tool
@@ -109,7 +109,7 @@ def _register_memory_tool(
         raise ValueError(f"memory 工具重复注册: {tool.name}")
     tools.register(
         tool,
-        always_on=True,
+        always_on=(tool.name == "recall_memory"),
         risk=risk,
         search_hint=search_hint,
     )

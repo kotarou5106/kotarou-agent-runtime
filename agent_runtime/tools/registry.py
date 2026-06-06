@@ -19,6 +19,24 @@ _PROGRESS_DESCRIPTION_SCHEMA: dict[str, str] = {
         "不要复述工具名，不要粘贴长参数。例如：查看目录、读取配置、搜索健康数据。"
     ),
 }
+_PROGRESS_DESCRIPTION_TOOL_NAMES: frozenset[str] = frozenset(
+    {
+        "shell",
+        "task_stop",
+        "message_push",
+        "write_file",
+        "edit_file",
+        "memorize",
+        "forget_memory",
+        "schedule",
+        "cancel_schedule",
+        "spawn",
+        "spawn_manage",
+    }
+)
+_PROGRESS_DESCRIPTION_RISKS: frozenset[str] = frozenset(
+    {"write", "external-side-effect", "destructive"}
+)
 
 
 def _schema_properties(parameters: dict[str, Any]) -> dict[str, Any]:
@@ -36,7 +54,20 @@ def _tool_defines_parameter(tool: Tool, name: str) -> bool:
     return isinstance(properties, dict) and name in properties
 
 
-def _with_progress_description(schema: dict[str, Any], tool: Tool) -> dict[str, Any]:
+def _should_add_progress_description(tool: Tool, meta: "ToolMeta | None") -> bool:
+    if tool.name in _PROGRESS_DESCRIPTION_TOOL_NAMES:
+        return True
+    risk = str(getattr(meta, "risk", "") or "")
+    return risk in _PROGRESS_DESCRIPTION_RISKS
+
+
+def _with_progress_description(
+    schema: dict[str, Any],
+    tool: Tool,
+    meta: "ToolMeta | None" = None,
+) -> dict[str, Any]:
+    if not _should_add_progress_description(tool, meta):
+        return cast(dict[str, Any], deepcopy(schema))
     cloned = cast(dict[str, Any], deepcopy(schema))
     function = cloned.get("function")
     if not isinstance(function, dict):
@@ -52,10 +83,9 @@ def _with_progress_description(schema: dict[str, Any], tool: Tool) -> dict[str, 
     properties[_PROGRESS_DESCRIPTION_FIELD] = dict(_PROGRESS_DESCRIPTION_SCHEMA)
     required = parameters.get("required")
     if isinstance(required, list):
-        if _PROGRESS_DESCRIPTION_FIELD not in required:
-            cast(list[Any], required).append(_PROGRESS_DESCRIPTION_FIELD)
+        _ = required
     else:
-        parameters["required"] = [_PROGRESS_DESCRIPTION_FIELD]
+        parameters["required"] = list(parameters.get("required") or [])
     return cloned
 
 
@@ -180,17 +210,21 @@ class ToolRegistry:
         """
         if names is None:
             return [
-                _with_progress_description(t.to_schema(), t)
-                for t in self._tools.values()
+                _with_progress_description(t.to_schema(), t, self._metadata.get(name))
+                for name, t in self._tools.items()
             ]
         if not isinstance(names, AbstractSet):
             return [
-                _with_progress_description(tool.to_schema(), tool)
+                _with_progress_description(
+                    tool.to_schema(),
+                    tool,
+                    self._metadata.get(name),
+                )
                 for name in names
                 if (tool := self._tools.get(name)) is not None
             ]
         return [
-            _with_progress_description(t.to_schema(), t)
+            _with_progress_description(t.to_schema(), t, self._metadata.get(name))
             for name, t in self._tools.items()
             if name in names
         ]

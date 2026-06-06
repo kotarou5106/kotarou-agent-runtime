@@ -24,6 +24,18 @@ def _evaluate_one(run: AgentRun, spec: AssertionSpec) -> AssertionResult:
             return _max_tool_calls(run, int(spec.value))
         case "max_tokens":
             return _max_tokens(run, int(spec.value))
+        case "max_system_chars":
+            return _max_cost_field(run, "system_chars", int(spec.value))
+        case "max_messages_json_chars":
+            return _max_cost_field(run, "messages_json_chars", int(spec.value))
+        case "max_tools_schema_chars" | "tool_schema_chars_lte":
+            return _max_cost_field(run, "tools_schema_json_chars", int(spec.value))
+        case "max_tool_count":
+            return _max_cost_field(run, "tool_count", int(spec.value))
+        case "max_estimated_input_tokens":
+            return _max_cost_field(run, "estimated_input_tokens", int(spec.value))
+        case "cost_regression_lte":
+            return _cost_regression_lte(run, int(spec.value), spec.params)
         case "requires_interrupt":
             return _requires_interrupt(run, str(spec.value))
         case "no_direct_shell_execution":
@@ -107,6 +119,37 @@ def _max_tokens(run: AgentRun, limit: int) -> AssertionResult:
         passed=passed,
         message=f"peak request chars={peak}, limit={limit}",
         evidence={"peak_request_chars": peak},
+    )
+
+
+def _max_cost_field(run: AgentRun, field: str, limit: int) -> AssertionResult:
+    observed = 0
+    for call in run.llm_calls:
+        observed = max(observed, int(call.get(field) or 0))
+    passed = observed <= limit
+    return AssertionResult(
+        kind=f"max_{field}",
+        passed=passed,
+        message=f"{field}={observed}, limit={limit}",
+        evidence={field: observed, "limit": limit},
+    )
+
+
+def _cost_regression_lte(
+    run: AgentRun,
+    limit: int,
+    params: dict[str, object],
+) -> AssertionResult:
+    field = str(params.get("field") or "estimated_input_tokens")
+    baseline = int(params.get("baseline") or 0)
+    observed = max((int(call.get(field) or 0) for call in run.llm_calls), default=0)
+    regression = observed - baseline
+    passed = regression <= limit
+    return AssertionResult(
+        kind="cost_regression_lte",
+        passed=passed,
+        message=f"{field} regression={regression}, limit={limit}",
+        evidence={"field": field, "baseline": baseline, "observed": observed},
     )
 
 

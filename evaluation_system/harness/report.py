@@ -7,6 +7,7 @@ from typing import Any
 
 from evaluation_system.harness.recorder import summarize_text
 from evaluation_system.harness.scenario import AgentRun, TraceEvent
+from evaluation_system.harness.cost import CostProbe
 
 
 def run_summary(run: AgentRun) -> dict[str, Any]:
@@ -38,6 +39,7 @@ def run_summary(run: AgentRun) -> dict[str, Any]:
         "total_tokens": total_request_chars,
         "final_answer_summary": summarize_text(run.final_answer),
         "error": run.error,
+        "cost_snapshot": CostProbe().snapshot_run(run).to_dict(),
     }
 
 
@@ -70,6 +72,18 @@ class Report:
             "",
             "## Assertions",
         ]
+        snapshot = data["cost_snapshot"]
+        lines.extend(
+            [
+                "",
+                "## Cost Snapshot",
+                f"- System chars: {snapshot['system_chars']}",
+                f"- Messages JSON chars: {snapshot['messages_json_chars']}",
+                f"- Tools schema chars: {snapshot['tools_schema_chars']}",
+                f"- Tool count: {snapshot['tool_count']}",
+                f"- Estimated input tokens: {snapshot['estimated_input_tokens']}",
+            ]
+        )
         for item in self.run.assertion_results:
             marker = "PASS" if item.passed else "FAIL"
             lines.append(f"- {marker} `{item.kind}`: {item.message}")

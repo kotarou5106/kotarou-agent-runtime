@@ -43,7 +43,7 @@ class CommonMetaToolsetProvider(ToolsetProvider):
                     vl_provider=deps.vl_provider,
                     vl_model=deps.vl_model,
                 ),
-                always_on=True,
+                always_on=False,
                 risk="read-only",
                 search_hint="看图 识图 图片内容 视觉识别 VL",
             )
@@ -76,13 +76,13 @@ class SpawnToolsetProvider(ToolsetProvider):
         if config.spawn_enabled:
             registry.register(
                 SpawnTool(subagent_manager, registry, policy=DelegationPolicy()),
-                always_on=True,
+                always_on=False,
                 risk="write",
                 search_hint="后台执行 子任务 多步调研 独立任务",
             )
             registry.register(
                 SpawnManageTool(subagent_manager),
-                always_on=True,
+                always_on=False,
                 risk="external-side-effect",
                 search_hint="查看 取消 后台任务 subagent job_id spawn_manage",
             )

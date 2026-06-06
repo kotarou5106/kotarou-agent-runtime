@@ -1,14 +1,10 @@
 from __future__ import annotations
 
 import copy
-import json
 from typing import Any
 
 from agent_runtime.provider import LLMResponse
-
-
-def _json_chars(value: object) -> int:
-    return len(json.dumps(value, ensure_ascii=False, sort_keys=True, default=str))
+from evaluation_system.harness.cost import snapshot_from_provider_call
 
 
 class ScriptedProvider:
@@ -24,8 +20,12 @@ class ScriptedProvider:
         tools = captured.get("tools") or []
         captured["message_count"] = len(messages)
         captured["tool_count"] = len(tools)
-        captured["messages_json_chars"] = _json_chars(messages)
-        captured["tools_schema_json_chars"] = _json_chars(tools)
+        snapshot = snapshot_from_provider_call(captured)
+        captured["system_chars"] = snapshot.system_chars
+        captured["messages_chars"] = snapshot.messages_chars
+        captured["messages_json_chars"] = snapshot.messages_json_chars
+        captured["tools_schema_json_chars"] = snapshot.tools_schema_chars
+        captured["estimated_input_tokens"] = snapshot.estimated_input_tokens
         self.calls.append(captured)
         if not self._responses:
             raise AssertionError("ScriptedProvider.chat called more than expected")
