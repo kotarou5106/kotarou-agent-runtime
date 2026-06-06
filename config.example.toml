@@ -45,6 +45,13 @@ memory_window = 40
 [agent.tools]
 search_enabled = true
 
+# 可选：工作流编排后端。默认 native；设为 langgraph 后启用 LangGraph
+# StateGraph 编排 LLM/tool loop，并支持 checkpoint / interrupt。
+[agent.orchestration]
+backend = "native"
+checkpoint_enabled = true
+interrupt_high_risk_tools = true
+
 # 可选：长期记忆整理任务（默认已启用，通常无需修改）
 # [agent.maintenance]
 # memory_optimizer_enabled = true

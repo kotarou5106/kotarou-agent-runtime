@@ -4,6 +4,14 @@ Kotarou Agent Runtime 是一个 Personal AI Agent Runtime / 个人智能体运�
 
 这个项目适合展示一个 Agent Runtime 如何长期运行：用户消息进入系统后，会经过上下文构建、记忆检索、知识检索、prompt 组装、LLM 推理、工具调用、流式回复、记忆沉淀和事件记录；后台系统还能调度主动任务，并通过 Dashboard 观察运行时状态。
 
+## Backend / LangGraph 状态
+
+- **Native backend 默认不变**：默认仍使用项目自研的 `AgentLoop + PassiveTurnPipeline + DefaultReasoner` 主链路，现有 memory、RAG、tool hooks、plugin lifecycle、session persistence 和 outbound dispatch 行为保持兼容。
+- **LangGraph backend 可选启用**：可在 `config.toml` 中设置 `agent.orchestration.backend = "langgraph"`，作为现有 runtime 的 workflow orchestration backend，而不是把项目改成 LangGraph demo。
+- **LangGraph 接管 LLM/tool loop orchestration**：LangGraph backend 将 LLM reasoning、tool risk gate、tool execution、after-step、finalize / summarize 拆成 StateGraph 节点；上下文准备、记忆/知识检索、prompt render、after reasoning、after turn 仍复用原 runtime。
+- **Checkpoint / interrupt policy**：LangGraph backend 支持 checkpoint，并对 write / external-side-effect / shell / message_push / schedule / memory mutation / spawn 等高风险工具提供 interrupt policy，用于 human-in-the-loop 审批。
+- **测试结果**：LangGraph 专项测试 `5 passed, 0 skipped, 0 failed`；当前全量测试 `1241 passed in 14.80s`。
+
 ## 项目定位
 
 Kotarou Agent Runtime 的目标是实现一个可扩展的个人 AI Agent 底座，而不是一个普通 RAG Demo 或单轮问答机器人。

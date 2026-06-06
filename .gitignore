@@ -76,3 +76,4 @@ node_modules/
 dist/
 build/
 .git_old_backup/
+interview_notes/
