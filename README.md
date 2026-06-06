@@ -214,6 +214,63 @@ python scripts/evaluate_knowledge_retrieval.py
 - `reports/knowledge_retrieval_eval.json`
 - `reports/knowledge_retrieval_eval.md`
 
+## DPO Preference Optimization
+
+`learning_system/` 新增离线 DPO preference optimization 链路。它不会在在线 Agent Loop 中边聊边训练，也不会把普通规则打分伪装成 RL；正确关系是：
+
+`Agent Runtime -> logs / traces / eval results / user feedback -> preference dataset builder -> DPO training -> offline evaluation -> optional model registry/runtime config`
+
+当前可接入的数据来源包括：
+
+- Agent / tool trace：`agent_runtime/core/runtime_support.py` 的 `TurnRunResult`、`ToolDiscoveryState`，以及 `evaluation_system/harness/runner.py` 生成的 `AgentRun.tool_chain/tools_used`。
+- RAG / retrieval trace：`knowledge_system/retrieval/retriever.py` 的 `KnowledgeRetriever.retrieve()` 和 retrieval trace。
+- Evaluation harness：`evaluation_system/harness/runner.py`、`evaluation_system/harness/report.py` 的 JSON 报告和 pass/fail/assertion 结果。
+- LLM-as-a-Judge：`evaluation_system/longmemeval/metrics.py::judge_answer()` 与 `score_results()`。
+- Proactive judge：`proactive_system/judge.py::Judge.judge_message()` 的 `final_score` 和维度分。
+- 用户反馈：`learning_system/preference_data/schema.py::UserFeedbackEvent` 定义了最小 thumbs-up / thumbs-down / A-B 选择 schema。
+
+导出 TRL 兼容 DPO JSONL：
+
+```bash
+python -m learning_system.preference_data.export \
+  --input data/agent_logs \
+  --output data/dpo/preferences.jsonl \
+  --min-score-gap 0.2
+```
+
+输出的训练文件包含 `prompt/chosen/rejected`，旁路 full metadata 文件保留 `source/task_type/judge_score/score_gap/tools/retrieval/citation/turn` 等审计信息。无真实数据时可生成 `source="synthetic_pair"` 的烟测样本，但不能当成真实用户反馈。
+
+DPO dry-run 不需要 GPU 或模型下载：
+
+```bash
+python -m learning_system.dpo.train_dpo \
+  --dataset-path data/dpo/preferences.jsonl \
+  --output-dir outputs/dpo \
+  --dry-run
+```
+
+真实训练使用 TRL `DPOTrainer`，训练依赖放在 `requirements-dpo.txt` 或 `.[dpo]` optional extra 中：
+
+```bash
+pip install -r requirements-dpo.txt
+python -m learning_system.dpo.train_dpo \
+  --model-name Qwen/Qwen2.5-0.5B-Instruct \
+  --dataset-path data/dpo/preferences.jsonl \
+  --output-dir outputs/dpo/qwen-agent-dpo \
+  --use-lora
+```
+
+Before/after evaluation 支持 dry-run mock provider，也支持加载 base/DPO 模型生成回答后评分：
+
+```bash
+python -m learning_system.dpo.evaluate_dpo \
+  --base-model Qwen/Qwen2.5-0.5B-Instruct \
+  --dpo-model outputs/dpo/qwen-agent-dpo \
+  --prompts data/dpo/eval_prompts.jsonl \
+  --output outputs/dpo/eval_result.json \
+  --dry-run
+```
+
 ## How to Run
 
 需要 Python 3.12 和 `uv`。
