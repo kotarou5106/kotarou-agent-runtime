@@ -217,6 +217,15 @@ class PostResponseMemoryWorker:
                 token_budget,
             )
             if supersede_ids:
+                self._memorizer.record_policy_events(
+                    supersede_ids,
+                    "corrected",
+                    metadata={
+                        "source": "post_response_invalidation",
+                        "topic": topic,
+                        "source_ref": source_ref,
+                    },
+                )
                 self._memorizer.supersede_batch(supersede_ids)
                 logger.info(
                     "post_response invalidation: superseded %s for topic '%s'",

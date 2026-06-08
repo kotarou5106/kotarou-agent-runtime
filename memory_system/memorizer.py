@@ -253,6 +253,15 @@ class Memorizer:
     def reinforce_items_batch(self, ids: list[str]) -> None:
         self._store.reinforce_items_batch(ids)
 
+    def record_policy_events(
+        self,
+        ids: list[str],
+        event_type: str,
+        *,
+        metadata: dict[str, object] | None = None,
+    ) -> None:
+        self._store.record_policy_events(ids, event_type, metadata=metadata)
+
     @staticmethod
     def _merge_summary_text(old_summary: str, new_summary: str) -> str:
         old_summary = (old_summary or "").strip()

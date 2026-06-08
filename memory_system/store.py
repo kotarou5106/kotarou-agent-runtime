@@ -16,10 +16,12 @@ import time
 from collections.abc import Sequence
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 from zoneinfo import ZoneInfo
 
 import numpy as np
+
+from memory_system.policy import MemoryPolicy, memory_policy_from_env
 
 try:
     import sqlite_vec
@@ -264,12 +266,20 @@ def _time_prefilter_clauses(
 
 
 class MemoryStore2:
-    def __init__(self, db_path: str | Path, vec_dim: int = VEC_DIM) -> None:
+    def __init__(
+        self,
+        db_path: str | Path,
+        vec_dim: int = VEC_DIM,
+        memory_policy: MemoryPolicy | None = None,
+    ) -> None:
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._db = sqlite3.connect(str(self.db_path), check_same_thread=False)
         self._lock = threading.RLock()
         self._closed = False
+        self._memory_policy = memory_policy or memory_policy_from_env(
+            self.db_path.with_suffix(".memory_policy.json")
+        )
         self._db.executescript(SCHEMA)
         self._db.commit()
 
@@ -556,6 +566,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS vec_items USING vec0(
             (_now_iso(), item_id),
         )
         self._db.commit()
+        self.record_policy_event(item_id, "superseded")
 
     def mark_superseded_batch(self, ids: list[str]) -> None:
         if not ids:
@@ -566,6 +577,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS vec_items USING vec0(
             [(now, item_id) for item_id in ids],
         )
         self._db.commit()
+        self.record_policy_events(ids, "superseded")
 
     def get_items_by_ids(self, ids: list[str]) -> list[dict[str, object]]:
         if not ids:
@@ -922,7 +934,10 @@ CREATE VIRTUAL TABLE IF NOT EXISTS vec_items USING vec0(
             )
             self._vec_delete([row[0]])
             self._db.commit()
-            return cur.rowcount > 0
+            deleted = cur.rowcount > 0
+        if deleted:
+            self.record_policy_event(item_id, "deleted")
+        return deleted
 
     def delete_items_batch(self, ids: list[str]) -> int:
         if not ids:
@@ -942,7 +957,10 @@ CREATE VIRTUAL TABLE IF NOT EXISTS vec_items USING vec0(
             )
             self._vec_delete(rowids)
             self._db.commit()
-            return int(cur.rowcount or 0)
+            count = int(cur.rowcount or 0)
+        if count:
+            self.record_policy_events(ids, "deleted")
+        return count
 
     def find_similar_items_for_dashboard(
         self,
@@ -1339,6 +1357,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS vec_items USING vec0(
                 }
             )
 
+        scored = self._apply_memory_policy_ranking(scored)
         scored.sort(key=_result_score, reverse=True)
         return scored[:top_k]
 
@@ -1461,6 +1480,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS vec_items USING vec0(
                 }
             )
 
+        scored = self._apply_memory_policy_ranking(scored)
         scored.sort(key=_result_score, reverse=True)
         return scored[:top_k]
 
@@ -1624,18 +1644,74 @@ CREATE VIRTUAL TABLE IF NOT EXISTS vec_items USING vec0(
 
     def delete_by_source_ref(self, source_ref: str) -> int:
         """删除指定 source_ref 的所有条目，返回删除行数。"""
-        rowids = [
-            r[0]
+        rows = [
+            (r[0], str(r[1]))
             for r in self._db.execute(
-                "SELECT rowid FROM memory_items WHERE source_ref=?", (source_ref,)
+                "SELECT rowid, id FROM memory_items WHERE source_ref=?", (source_ref,)
             ).fetchall()
         ]
+        rowids = [rowid for rowid, _item_id in rows]
+        deleted_ids = [item_id for _rowid, item_id in rows if item_id]
         cur = self._db.execute(
             "DELETE FROM memory_items WHERE source_ref=?", (source_ref,)
         )
         self._vec_delete(rowids)
         self._db.commit()
-        return cur.rowcount
+        count = int(cur.rowcount or 0)
+        if count:
+            self.record_policy_events(deleted_ids, "deleted")
+        return count
+
+    def record_policy_event(
+        self,
+        memory_id: str,
+        event_type: str,
+        *,
+        reward: float | None = None,
+        user_feedback: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        if self._memory_policy is None:
+            return
+        try:
+            self._memory_policy.record_event(
+                memory_id,
+                event_type,
+                reward=reward,
+                user_feedback=user_feedback,
+                metadata=metadata,
+            )
+        except Exception as exc:
+            logger.debug("memory policy event skipped: %s", exc)
+
+    def record_policy_events(
+        self,
+        ids: list[str],
+        event_type: str,
+        *,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        if self._memory_policy is None:
+            return
+        try:
+            self._memory_policy.record_events(ids, event_type, metadata=metadata)
+        except Exception as exc:
+            logger.debug("memory policy events skipped: %s", exc)
+
+    def _apply_memory_policy_ranking(
+        self,
+        scored: list[_MemoryHit],
+    ) -> list[_MemoryHit]:
+        if self._memory_policy is None or not scored:
+            return scored
+        try:
+            ranked = self._memory_policy.rank_results(
+                [cast(dict[str, Any], item) for item in scored]
+            )
+            return cast(list[_MemoryHit], ranked)
+        except Exception as exc:
+            logger.debug("memory policy ranking skipped: %s", exc)
+            return scored
 
     def has_item_by_source_ref(
         self,

@@ -123,6 +123,37 @@ Kotarou Agent Runtime 使用 Markdown 记忆层承载长期状态，默认位于
 
 这个设计的重点是分离长期记忆和当前上下文。系统不会把所有历史对话直接塞进 prompt，而是通过近期摘要、长期记忆、事件日志检索和待归档缓冲共同维护上下文压力。这样既能保留长期连续性，也能控制 prompt 成本和噪声。
 
+### Memory Policy Optimization
+
+`memory_system/policy/` 提供轻量级 Memory Policy Optimization。它不是完整强化学习、RLHF、PPO 或 GRPO，也不会训练大模型；它只在 memory runtime 侧记录可解释的反馈事件，并用这些统计信息微调后续 memory retrieval 排序。
+
+当前最小闭环是：
+
+```text
+memory item
+  -> retrieved / injected / used / corrected / superseded / deleted event
+  -> MemoryPolicyStore update
+  -> reliability / usefulness / retrieval_boost
+  -> future vector retrieval rerank
+```
+
+Reward 由规则计算：retrieved / injected / used 是小幅正反馈，corrected / superseded / deleted 是负反馈，用户 thumbs-up / thumbs-down 可作为更强的显式反馈。统计数据保存到 JSON policy store，包含每条记忆的 retrieved_count、injected_count、used_count、corrected_count、superseded_count、deleted_count、avg_reward、reliability、usefulness、retrieval_boost 和 last_event_at。
+
+该能力默认关闭，避免改变现有长期记忆检索行为。开启方式：
+
+```bash
+ENABLE_MEMORY_POLICY_OPTIMIZATION=true \
+MEMORY_POLICY_STORE_PATH=.kotarou/memory_policy.json \
+python main.py
+```
+
+查看或重置策略统计：
+
+```bash
+python -m memory_system.policy.memory_policy --store .kotarou/memory_policy.json --stats
+python -m memory_system.policy --store .kotarou/memory_policy.json --reset
+```
+
 ## RAG / Knowledge System
 
 `knowledge_system/` 负责把外部知识变成可注入的 runtime context。知识内容会经过加载、切分、embedding、索引和检索；当用户问题需要知识库支持时，检索结果会以 `knowledge_context` 的形式进入 prompt assembly。
@@ -161,6 +192,38 @@ Tool Registry
 ```
 
 工具可以来自内置实现、插件注册或 MCP。运行时负责把工具 schema 暴露给 LLM，在模型选择工具后执行调用，把结构化结果回传给推理链路，并在异常、权限或循环风险出现时进入错误处理和安全边界。
+
+### Tool Selection Policy Optimization
+
+`agent_runtime/learning/` 提供轻量级工具调用策略优化模块。它不是完整 RLHF / PPO / GRPO，也不会训练或微调大模型；它只在 runtime 侧维护一个可解释的 Contextual Bandit / feedback-driven policy，用历史工具调用 reward 调整 `tool_search` 候选工具的排序倾向。
+
+当前最小闭环是：
+
+```text
+ToolCallContext
+  -> candidate tools
+  -> BanditPolicy rerank
+  -> ToolAction / tool execution
+  -> ToolRewardSignal
+  -> ToolPolicyStore update
+```
+
+Reward 由规则计算：工具成功为正，工具错误为负，tool loop guard、超时、安全拒绝等会降低分数；后续可接入用户 thumbs-up / thumbs-down、LLM judge score 和 task completed 信号。统计数据保存到 JSON policy store，包含每个工具的 count、avg_reward、success_rate 和 last_used_at。
+
+该能力默认关闭，避免改变现有 Agent Runtime 行为。开启方式：
+
+```bash
+ENABLE_TOOL_POLICY_OPTIMIZATION=true \
+TOOL_POLICY_STORE_PATH=.kotarou/tool_policy.json \
+python main.py
+```
+
+查看或重置策略统计：
+
+```bash
+python -m agent_runtime.learning.tool_policy --stats --store .kotarou/tool_policy.json
+python -m agent_runtime.learning.tool_policy --reset --store .kotarou/tool_policy.json
+```
 
 ## Plugin System
 
