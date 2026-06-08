@@ -211,6 +211,14 @@ def _dict_items(value: object) -> list[dict[str, object]]:
     ]
 
 
+def _item_ids(items: list[dict[str, object]]) -> list[str]:
+    return [
+        str(item.get("id") or "").strip()
+        for item in items
+        if isinstance(item, dict) and str(item.get("id") or "").strip()
+    ]
+
+
 def _build_long_term_prompt(*, conversation: str, existing_profile: str) -> str:
     return f"""你是长期记忆提取专家。从对话窗口中一次性提取三类长期记忆，返回 JSON。
 
@@ -767,6 +775,16 @@ class DefaultMemoryEngine:
             time_end=request.filters.time_end,
         )
         text_block, injected_ids = retriever.build_injection_block(items)
+        self._record_memory_policy_events(
+            _item_ids(items),
+            "retrieved",
+            metadata={"intent": request.intent, "query": request.text[:200]},
+        )
+        self._record_memory_policy_events(
+            injected_ids,
+            "injected",
+            metadata={"intent": request.intent, "query": request.text[:200]},
+        )
         records = [
             self._build_record(item, injected_ids=injected_ids)
             for item in items
@@ -1152,6 +1170,11 @@ class DefaultMemoryEngine:
             keyword_enabled=True,
         )
         sliced = list(hits)[: request.limit]
+        self._record_memory_policy_events(
+            _item_ids(sliced),
+            "retrieved",
+            metadata={"intent": request.intent, "query": request.text[:200]},
+        )
         return MemoryQueryResult(
             records=[self._build_record(item) for item in sliced if isinstance(item, dict)],
             trace={
@@ -1196,6 +1219,11 @@ class DefaultMemoryEngine:
             require_scope_match=should_require_scope_match(request, scope),
         )
         records = [self._build_record(item) for item in hits if isinstance(item, dict)]
+        self._record_memory_policy_events(
+            _item_ids(hits),
+            "retrieved",
+            metadata={"intent": request.intent, "query": request.text[:200]},
+        )
         texts = [record.summary for record in records]
         return MemoryQueryResult(
             text_block="\n---\n".join(texts),
@@ -1277,6 +1305,21 @@ class DefaultMemoryEngine:
         if self._v2_store is None:
             raise RuntimeError("memory v2 store unavailable")
         return self._v2_store
+
+    def _record_memory_policy_events(
+        self,
+        ids: list[str],
+        event_type: str,
+        *,
+        metadata: dict[str, object] | None = None,
+    ) -> None:
+        store = self._v2_store
+        if store is None:
+            return
+        recorder = getattr(store, "record_policy_events", None)
+        if not callable(recorder):
+            return
+        recorder(ids, event_type, metadata=metadata)
 
     @classmethod
     def _build_record(

@@ -180,6 +180,13 @@ def _load_channels_config(data: dict) -> ChannelsConfig:
                     str(u) for u in tg.get("allow_from", tg.get("allowFrom", []))
                 ],
                 channel_name=str(tg.get("channel_name", "telegram")),
+                live_edit=bool(tg.get("live_edit", tg.get("liveEdit", False))),
+                stream_response=bool(
+                    tg.get("stream_response", tg.get("streamResponse", False))
+                ),
+                show_thinking=bool(
+                    tg.get("show_thinking", tg.get("showThinking", False))
+                ),
             )
 
     qq = None

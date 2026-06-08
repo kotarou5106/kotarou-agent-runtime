@@ -433,6 +433,9 @@ async def test_start_channels_wires_telegram_and_qq(monkeypatch, tmp_path):
     ]
     assert tg.kwargs["event_bus"] is event_bus
     assert tg.kwargs["interrupt_controller"] is controller
+    assert tg.kwargs["live_edit"] is False
+    assert tg.kwargs["stream_response"] is False
+    assert tg.kwargs["show_thinking"] is False
     assert qq.kwargs["interrupt_controller"] is controller
     assert qqbot.kwargs["event_bus"] is event_bus
     assert qqbot.kwargs["interrupt_controller"] is controller

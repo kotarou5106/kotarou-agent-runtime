@@ -1424,6 +1424,7 @@ class DefaultReasoner(Reasoner):
                         tool_name=tool_call.name,
                         arguments=dict(tool_call.arguments),
                     ))
+                    tool_started = time.perf_counter()
                     exec_result = await self._tool_executor.execute(
                         ToolExecutionRequest(
                             call_id=tool_call.id,
@@ -1440,6 +1441,7 @@ class DefaultReasoner(Reasoner):
                         # hook 只负责拦截与记录，不替代 registry。
                         self._tools.execute,
                     )
+                    tool_latency_ms = int((time.perf_counter() - tool_started) * 1000)
                     if exec_result.status == "success":
                         tools_used.append(tool_call.name)
                     result = exec_result.output
@@ -1473,6 +1475,15 @@ class DefaultReasoner(Reasoner):
                         tool_call.name,
                         _result_preview,
                         _result_len,
+                    )
+                    self._record_tool_policy_reward(
+                        tool_name=tool_call.name,
+                        status=exec_result.status,
+                        latency_ms=tool_latency_ms,
+                        exec_result=exec_result,
+                        session_key=tool_event_session_key,
+                        channel=tool_event_channel,
+                        chat_id=tool_event_chat_id,
                     )
                     append_tool_result(
                         messages,
@@ -1771,6 +1782,39 @@ class DefaultReasoner(Reasoner):
                 trace_id=trace_id,
             )
         )
+
+    def _record_tool_policy_reward(
+        self,
+        *,
+        tool_name: str,
+        status: str,
+        latency_ms: int,
+        exec_result: object,
+        session_key: str = "",
+        channel: str = "",
+        chat_id: str = "",
+    ) -> None:
+        if getattr(self._tools, "selection_policy", None) is None:
+            return
+        try:
+            from agent_runtime.learning.reward_signal import ToolRewardSignal
+
+            error_type = str(status or "")
+            if _is_tool_loop_guard_denial(exec_result):
+                error_type = "tool_loop_guard"
+            signal = ToolRewardSignal.from_tool_status(
+                status=status,
+                latency_ms=latency_ms,
+                error_type=error_type,
+                metadata={
+                    "session_key": session_key,
+                    "channel": channel,
+                    "chat_id": chat_id,
+                },
+            )
+            self._tools.record_tool_reward(tool_name, signal)
+        except Exception:
+            logger.exception("tool policy reward update failed for %s", tool_name)
 
     async def _emit_trace(
         self,

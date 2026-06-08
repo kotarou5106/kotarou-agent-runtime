@@ -79,11 +79,17 @@ class TelegramChannel:
         event_bus: EventBus | None = None,
         interrupt_controller: InterruptController | None = None,
         channel_name: str = _CHANNEL,
+        live_edit: bool = False,
+        stream_response: bool = False,
+        show_thinking: bool = False,
     ) -> None:
         self._bus = bus
         self._session_manager = session_manager
         self._interrupt_controller = interrupt_controller
         self._channel = channel_name
+        self._live_edit = bool(live_edit)
+        self._stream_response = bool(stream_response)
+        self._show_thinking = bool(show_thinking)
         self._allow_from: set[str] = set(allow_from) if allow_from else set()
         self._message_deduper = MessageDeduper(_SEEN_MSG_MAXSIZE)
         ws = getattr(session_manager, "workspace", None)
@@ -110,7 +116,7 @@ class TelegramChannel:
             MessageHandler(filters.Document.ALL & ~filters.COMMAND, self._on_document)
         )
         bus.subscribe_outbound(self._channel, self._on_response)
-        if event_bus is not None:
+        if event_bus is not None and self._live_edit:
             event_bus.on(TurnStarted, self._on_turn_started)
             event_bus.on(StreamDeltaReady, self._on_stream_delta)
             event_bus.on(ToolCallStarted, self._on_tool_call_started)
@@ -219,6 +225,18 @@ class TelegramChannel:
         if username:
             await self._identity_index.remember(username, chat_id)
 
+    def _inbound_metadata(
+        self,
+        username: str | None,
+        extra: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        metadata = {"username": username or ""}
+        if not self._stream_response:
+            metadata["suppress_stream_events"] = True
+        if extra:
+            metadata.update(extra)
+        return metadata
+
     async def _on_message(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> None:
@@ -298,10 +316,7 @@ class TelegramChannel:
                 chat_id=str(chat.id),
                 content=inbound_text,
                 media=reply_media,
-                metadata={
-                    "username": user.username or "",
-                    **reply_meta,
-                },
+                metadata=self._inbound_metadata(user.username, reply_meta),
             )
         )
 
@@ -362,7 +377,7 @@ class TelegramChannel:
                 sender=str(user.id),
                 chat_id=str(chat.id),
                 content=str(getattr(msg, "text", "") or ""),
-                metadata={"username": user.username or ""},
+                metadata=self._inbound_metadata(user.username),
             )
         )
 
@@ -429,10 +444,7 @@ class TelegramChannel:
                 chat_id=str(chat.id),
                 content=inbound_text,
                 media=media,
-                metadata={
-                    "username": user.username or "",
-                    **reply_meta,
-                },
+                metadata=self._inbound_metadata(user.username, reply_meta),
             )
         )
 
@@ -482,12 +494,14 @@ class TelegramChannel:
                 chat_id=str(chat.id),
                 content=inbound_text,
                 media=[str(tmp)],
-                metadata={
-                    "username": user.username or "",
-                    "document_filename": doc.file_name or "",
-                    "document_mime_type": doc.mime_type or "",
-                    **reply_meta,
-                },
+                metadata=self._inbound_metadata(
+                    user.username,
+                    {
+                        "document_filename": doc.file_name or "",
+                        "document_mime_type": doc.mime_type or "",
+                        **reply_meta,
+                    },
+                ),
             )
         )
 
@@ -513,6 +527,9 @@ class TelegramChannel:
 
     async def send_stream(self, chat_id: str, message: str) -> None:
         """发送流式文本消息（私聊优先 draft，其他场景降级普通发送）"""
+        if not self._stream_response:
+            await self.send(chat_id, message)
+            return
         await send_stream_markdown(
             self._app.bot,
             self._resolve_chat_id(chat_id),
@@ -521,6 +538,8 @@ class TelegramChannel:
         )
 
     def create_stream_sender(self, chat_id: str):
+        if not self._stream_response:
+            return None
         cid = int(self._resolve_chat_id(chat_id))
         if cid <= 0:
             return None
@@ -549,6 +568,16 @@ class TelegramChannel:
             return
         if not event.content_delta and not event.thinking_delta:
             return
+        if event.thinking_delta and not self._show_thinking:
+            event = StreamDeltaReady(
+                session_key=event.session_key,
+                channel=event.channel,
+                chat_id=event.chat_id,
+                content_delta=event.content_delta,
+                thinking_delta="",
+            )
+            if not event.content_delta:
+                return
         cid = int(self._resolve_chat_id(event.chat_id))
         if cid <= 0:
             return
@@ -760,7 +789,11 @@ class TelegramChannel:
         if had_live:
             await self._cancel_live_tasks(session_key)
             await self._delete_live_message(session_key)
-        final_thinking = self._final_thinking_text(session_key, msg.thinking)
+        final_thinking = (
+            self._final_thinking_text(session_key, msg.thinking)
+            if self._show_thinking
+            else ""
+        )
         if had_live:
             if final_thinking:
                 await send_thinking_block(

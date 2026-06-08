@@ -583,6 +583,9 @@ async def test_telegram_channel_paths(monkeypatch: pytest.MonkeyPatch, tmp_path:
         ],
         event_bus=event_bus,
         interrupt_controller=interrupt_controller,
+        live_edit=True,
+        stream_response=True,
+        show_thinking=True,
     )
     channel._telegram_outbound_limiter = mod.TelegramOutboundLimiter(
         send_interval_s=0.0,
@@ -934,6 +937,95 @@ async def test_telegram_channel_paths(monkeypatch: pytest.MonkeyPatch, tmp_path:
         SimpleNamespace(text="", caption="", photo=[1], from_user=None, message_id=11),
     )
     assert "[图片]" in merged
+
+
+@pytest.mark.asyncio
+async def test_telegram_channel_defaults_disable_streaming_and_thinking(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    mod = _import_telegram_channel(monkeypatch)
+    bus = _Bus()
+    event_bus = EventBus()
+    session_manager = _SessionManager()
+    channel = mod.TelegramChannel(
+        "token",
+        bus,
+        session_manager,
+        allow_from=["1"],
+        event_bus=event_bus,
+    )
+    channel._telegram_outbound_limiter = mod.TelegramOutboundLimiter(
+        send_interval_s=0.0,
+        edit_interval_s=0.0,
+        typing_interval_s=0.0,
+        global_interval_s=0.0,
+        retry_padding_s=0.0,
+    )
+    monkeypatch.setattr(mod, "send_markdown", AsyncMock())
+    monkeypatch.setattr(mod, "send_stream_markdown", AsyncMock())
+    monkeypatch.setattr(mod, "send_thinking_block", AsyncMock())
+
+    await channel.start()
+    context = SimpleNamespace(bot=channel._app.bot)
+    update = SimpleNamespace(
+        effective_message=SimpleNamespace(
+            text="hello",
+            message_id=1,
+            reply_to_message=None,
+            photo=None,
+            document=None,
+        ),
+        effective_chat=SimpleNamespace(id=123),
+        effective_user=SimpleNamespace(id=1, username="Alice"),
+    )
+
+    await channel._on_message(update, context)
+
+    assert bus.inbound[0].metadata["suppress_stream_events"] is True
+    await event_bus.observe(
+        StreamDeltaReady(
+            session_key="telegram:123",
+            channel="telegram",
+            chat_id="123",
+            content_delta="The",
+            thinking_delta="hidden reasoning",
+        )
+    )
+    await event_bus.observe(
+        ToolCallStarted(
+            session_key="telegram:123",
+            channel="telegram",
+            chat_id="123",
+            iteration=1,
+            call_id="call-1",
+            tool_name="search",
+            arguments={"query": "x"},
+        )
+    )
+    await asyncio.sleep(0)
+
+    assert channel._live_messages == {}
+    assert channel._app.bot.send_message.await_count == 0
+
+    await channel.send_stream("123", "complete answer")
+    mod.send_markdown.assert_awaited_once()
+    mod.send_stream_markdown.assert_not_awaited()
+
+    await channel._on_response(
+        OutboundMessage(
+            channel="telegram",
+            chat_id="123",
+            content="final answer",
+            thinking="private chain of thought",
+            metadata={"streamed_reply": True},
+        )
+    )
+
+    assert mod.send_thinking_block.await_count == 0
+    assert mod.send_markdown.await_count == 2
+    assert channel.create_stream_sender("123") is None
+    assert channel._app.bot.edit_message_text.await_count == 0
+    await channel.stop()
 
 
 @pytest.mark.asyncio

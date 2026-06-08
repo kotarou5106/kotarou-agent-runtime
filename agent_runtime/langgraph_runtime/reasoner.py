@@ -427,6 +427,7 @@ class LangGraphReasoner(DefaultReasoner):
                 self._tool_search_tool.set_excluded_names(
                     visible_names | set(state["disabled_tools"])
                 )
+            tool_started = time.perf_counter()
             exec_result = await self._tool_executor.execute(
                 ToolExecutionRequest(
                     call_id=tool_call.id,
@@ -441,6 +442,7 @@ class LangGraphReasoner(DefaultReasoner):
                 ),
                 self._tools.execute,
             )
+            tool_latency_ms = int((time.perf_counter() - tool_started) * 1000)
             if exec_result.status == "success":
                 tools_used.append(tool_call.name)
             normalized = normalize_tool_result(exec_result.output)
@@ -449,6 +451,15 @@ class LangGraphReasoner(DefaultReasoner):
                 tool_call_id=tool_call.id,
                 content=exec_result.output,
                 tool_name=tool_call.name,
+            )
+            self._record_tool_policy_reward(
+                tool_name=tool_call.name,
+                status=exec_result.status,
+                latency_ms=tool_latency_ms,
+                exec_result=exec_result,
+                session_key=state["session_key"],
+                channel=state["channel"],
+                chat_id=state["chat_id"],
             )
             if (
                 exec_result.status == "success"

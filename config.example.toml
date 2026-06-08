@@ -71,6 +71,10 @@ interrupt_high_risk_tools = true
 token = ""
 # 你的 Telegram 用户名（不带 @），只有白名单用户才能使用 bot。
 allow_from = ["your_username"]
+# 默认等完整回答生成后一次性发送；调试时才建议开启下面三项。
+live_edit = false
+stream_response = false
+show_thinking = false
 # channel 标识符，决定 session key 前缀（如 telegram:12345）。
 # 多个 bot 想要隔离记忆时，改成不同的名字（如 "telegram_work"）。
 # channel_name = "telegram"

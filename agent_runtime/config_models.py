@@ -11,6 +11,9 @@ class TelegramChannelConfig:
     token: str
     allow_from: list[str] = field(default_factory=list)
     channel_name: str = "telegram"
+    live_edit: bool = False
+    stream_response: bool = False
+    show_thinking: bool = False
 
 
 @dataclass

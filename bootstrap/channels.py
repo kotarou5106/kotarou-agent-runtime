@@ -42,12 +42,16 @@ async def start_channels(
             event_bus=event_bus,
             interrupt_controller=interrupt_controller,
             channel_name=tg.channel_name,
+            live_edit=tg.live_edit,
+            stream_response=tg.stream_response,
+            show_thinking=tg.show_thinking,
         )
         await tg_channel.start()
+        stream_text = tg_channel.send_stream if tg.stream_response else None
         push_tool.register_channel(
             tg.channel_name,
             text=tg_channel.send,
-            stream_text=tg_channel.send_stream,
+            stream_text=stream_text,
             file=tg_channel.send_file,
             image=tg_channel.send_image,
         )

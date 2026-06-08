@@ -2,10 +2,14 @@ import logging
 from collections.abc import Iterable, Set as AbstractSet
 from copy import deepcopy
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from agent_runtime.tools.base import Tool, ToolResult
 from agent_runtime.tools.search_backend import KeywordSearchBackend, SearchBackend
+
+if TYPE_CHECKING:
+    from agent_runtime.learning.reward_signal import ToolRewardSignal
+    from agent_runtime.learning.tool_policy import ToolCallContext, ToolSelectionPolicy
 
 logger = logging.getLogger(__name__)
 
@@ -145,12 +149,35 @@ class ToolDocument:
 class ToolRegistry:
     """管理所有可用工具"""
 
-    def __init__(self, backend: SearchBackend | None = None) -> None:
+    def __init__(
+        self,
+        backend: SearchBackend | None = None,
+        *,
+        selection_policy: "ToolSelectionPolicy | None" = None,
+    ) -> None:
         self._tools: dict[str, Tool] = {}
         self._metadata: dict[str, ToolMeta] = {}
         self._documents: dict[str, ToolDocument] = {}
         self._context: dict[str, str] = {}
         self._backend: SearchBackend = backend or KeywordSearchBackend()
+        if selection_policy is None:
+            try:
+                from agent_runtime.learning.tool_policy import (
+                    build_default_tool_selection_policy,
+                )
+
+                selection_policy = build_default_tool_selection_policy()
+            except Exception:
+                logger.exception("tool selection policy initialization failed")
+                selection_policy = None
+        self._selection_policy = selection_policy
+
+    @property
+    def selection_policy(self) -> "ToolSelectionPolicy | None":
+        return self._selection_policy
+
+    def set_selection_policy(self, policy: "ToolSelectionPolicy | None") -> None:
+        self._selection_policy = policy
 
     def set_context(self, **kwargs: str) -> None:
         """设置当前会话上下文（channel、chat_id 等），供工具按需读取。"""
@@ -333,7 +360,7 @@ class ToolRegistry:
         meta_tools 始终被排除。搜索逻辑委托给 SearchBackend。
         """
         excluded = _META_TOOLS | (excluded_names or set())
-        return cast(
+        results = cast(
             list[dict[str, Any]],
             self._backend.search(
                 query=query,
@@ -342,3 +369,38 @@ class ToolRegistry:
                 excluded_names=excluded,
             ),
         )
+        if self._selection_policy is None or len(results) <= 1:
+            return results
+        try:
+            from agent_runtime.learning.tool_policy import ToolCallContext
+
+            return self._selection_policy.rerank_search_results(
+                results,
+                context=ToolCallContext(
+                    user_intent=query,
+                    candidate_tools=[
+                        str(item.get("name") or "")
+                        for item in results
+                        if str(item.get("name") or "")
+                    ],
+                    metadata={
+                        "allowed_risk": list(allowed_risk or []),
+                        "excluded_names": sorted(excluded),
+                    },
+                ),
+            )
+        except Exception:
+            logger.exception("tool selection policy rerank failed")
+            return results
+
+    def record_tool_reward(
+        self,
+        tool_name: str,
+        signal: "ToolRewardSignal",
+    ) -> None:
+        if self._selection_policy is None:
+            return
+        try:
+            self._selection_policy.update(tool_name, signal)
+        except Exception:
+            logger.exception("tool selection policy update failed for %s", tool_name)
