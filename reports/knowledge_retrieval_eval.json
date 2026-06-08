@@ -1,0 +1,1216 @@
+{
+  "results": [
+    {
+      "retriever_name": "bm25",
+      "metrics": {
+        "recall@1": 0.0,
+        "precision@1": 0.0,
+        "hit_rate@1": 0.0,
+        "ndcg@1": 0.0,
+        "recall@3": 0.0,
+        "precision@3": 0.0,
+        "hit_rate@3": 0.0,
+        "ndcg@3": 0.0,
+        "recall@5": 0.0,
+        "precision@5": 0.0,
+        "hit_rate@5": 0.0,
+        "ndcg@5": 0.0,
+        "recall@10": 0.0,
+        "precision@10": 0.0,
+        "hit_rate@10": 0.0,
+        "ndcg@10": 0.0,
+        "mrr@5": 0.0
+      },
+      "case_results": [
+        {
+          "case_id": "agent-runtime-loop",
+          "query": "How does the Agent Runtime main loop assemble context and call the LLM?",
+          "retrieved_chunk_ids": [],
+          "retrieved_document_ids": [],
+          "relevant_chunk_ids": [],
+          "relevant_document_ids": [
+            "agent_runtime"
+          ],
+          "hit_at_k": {
+            "1": false,
+            "3": false,
+            "5": false,
+            "10": false
+          },
+          "recall_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "precision_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "reciprocal_rank": 0.0,
+          "ndcg_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "first_relevant_rank": null,
+          "trace_id": "ktrace_cfc593ad79f64f26806c4ee9",
+          "error": null
+        },
+        {
+          "case_id": "long-term-memory",
+          "query": "How is long-term memory retrieved into the current conversation?",
+          "retrieved_chunk_ids": [],
+          "retrieved_document_ids": [],
+          "relevant_chunk_ids": [],
+          "relevant_document_ids": [
+            "memory_system"
+          ],
+          "hit_at_k": {
+            "1": false,
+            "3": false,
+            "5": false,
+            "10": false
+          },
+          "recall_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "precision_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "reciprocal_rank": 0.0,
+          "ndcg_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "first_relevant_rank": null,
+          "trace_id": "ktrace_66ccafee779b4a95a9747a0d",
+          "error": null
+        },
+        {
+          "case_id": "tool-calling",
+          "query": "Where are tool calling and function calling handled?",
+          "retrieved_chunk_ids": [],
+          "retrieved_document_ids": [],
+          "relevant_chunk_ids": [],
+          "relevant_document_ids": [
+            "tool_system"
+          ],
+          "hit_at_k": {
+            "1": false,
+            "3": false,
+            "5": false,
+            "10": false
+          },
+          "recall_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "precision_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "reciprocal_rank": 0.0,
+          "ndcg_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "first_relevant_rank": null,
+          "trace_id": "ktrace_daa2a026e4254b6a9dce51ec",
+          "error": null
+        },
+        {
+          "case_id": "plugin-system",
+          "query": "How can plugins register tools or lifecycle hooks?",
+          "retrieved_chunk_ids": [],
+          "retrieved_document_ids": [],
+          "relevant_chunk_ids": [],
+          "relevant_document_ids": [
+            "plugins"
+          ],
+          "hit_at_k": {
+            "1": false,
+            "3": false,
+            "5": false,
+            "10": false
+          },
+          "recall_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "precision_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "reciprocal_rank": 0.0,
+          "ndcg_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "first_relevant_rank": null,
+          "trace_id": "ktrace_68a0dd18072f41159fa016fd",
+          "error": null
+        },
+        {
+          "case_id": "proactive-scheduler",
+          "query": "How do proactive tasks and scheduler background jobs run?",
+          "retrieved_chunk_ids": [],
+          "retrieved_document_ids": [],
+          "relevant_chunk_ids": [],
+          "relevant_document_ids": [
+            "proactive_system"
+          ],
+          "hit_at_k": {
+            "1": false,
+            "3": false,
+            "5": false,
+            "10": false
+          },
+          "recall_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "precision_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "reciprocal_rank": 0.0,
+          "ndcg_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "first_relevant_rank": null,
+          "trace_id": "ktrace_e97349c565fa4dc29f374c20",
+          "error": null
+        },
+        {
+          "case_id": "langgraph-workflow",
+          "query": "What does the LangGraph workflow orchestration backend do?",
+          "retrieved_chunk_ids": [],
+          "retrieved_document_ids": [],
+          "relevant_chunk_ids": [],
+          "relevant_document_ids": [
+            "langgraph_workflow"
+          ],
+          "hit_at_k": {
+            "1": false,
+            "3": false,
+            "5": false,
+            "10": false
+          },
+          "recall_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "precision_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "reciprocal_rank": 0.0,
+          "ndcg_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "first_relevant_rank": null,
+          "trace_id": "ktrace_d61e1ff544ed4eb89a0164de",
+          "error": null
+        },
+        {
+          "case_id": "hybrid-rag",
+          "query": "How does Hybrid RAG use vector search BM25 and RRF?",
+          "retrieved_chunk_ids": [],
+          "retrieved_document_ids": [],
+          "relevant_chunk_ids": [],
+          "relevant_document_ids": [
+            "knowledge_system"
+          ],
+          "hit_at_k": {
+            "1": false,
+            "3": false,
+            "5": false,
+            "10": false
+          },
+          "recall_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "precision_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "reciprocal_rank": 0.0,
+          "ndcg_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "first_relevant_rank": null,
+          "trace_id": "ktrace_7fa6fbed51024a7ba49c14cc",
+          "error": null
+        },
+        {
+          "case_id": "citation-validation",
+          "query": "How are knowledge citations validated?",
+          "retrieved_chunk_ids": [],
+          "retrieved_document_ids": [],
+          "relevant_chunk_ids": [],
+          "relevant_document_ids": [
+            "citation"
+          ],
+          "hit_at_k": {
+            "1": false,
+            "3": false,
+            "5": false,
+            "10": false
+          },
+          "recall_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "precision_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "reciprocal_rank": 0.0,
+          "ndcg_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "first_relevant_rank": null,
+          "trace_id": "ktrace_70391fd09025446c9ecebbf5",
+          "error": null
+        },
+        {
+          "case_id": "dashboard-observability",
+          "query": "How can the dashboard inspect knowledge retrieval traces?",
+          "retrieved_chunk_ids": [],
+          "retrieved_document_ids": [],
+          "relevant_chunk_ids": [],
+          "relevant_document_ids": [
+            "dashboard"
+          ],
+          "hit_at_k": {
+            "1": false,
+            "3": false,
+            "5": false,
+            "10": false
+          },
+          "recall_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "precision_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "reciprocal_rank": 0.0,
+          "ndcg_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "first_relevant_rank": null,
+          "trace_id": "ktrace_01aeca0d24f74a3d807ba3ce",
+          "error": null
+        },
+        {
+          "case_id": "token-cost-evaluation",
+          "query": "How does token cost evaluation estimate prompt and tool schema cost?",
+          "retrieved_chunk_ids": [],
+          "retrieved_document_ids": [],
+          "relevant_chunk_ids": [],
+          "relevant_document_ids": [
+            "token_cost_optimization"
+          ],
+          "hit_at_k": {
+            "1": false,
+            "3": false,
+            "5": false,
+            "10": false
+          },
+          "recall_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "precision_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "reciprocal_rank": 0.0,
+          "ndcg_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "first_relevant_rank": null,
+          "trace_id": "ktrace_01ef4fe88f004ceab34ae62e",
+          "error": null
+        }
+      ]
+    },
+    {
+      "retriever_name": "vector",
+      "metrics": {
+        "recall@1": 0.0,
+        "precision@1": 0.0,
+        "hit_rate@1": 0.0,
+        "ndcg@1": 0.0,
+        "recall@3": 0.0,
+        "precision@3": 0.0,
+        "hit_rate@3": 0.0,
+        "ndcg@3": 0.0,
+        "recall@5": 0.0,
+        "precision@5": 0.0,
+        "hit_rate@5": 0.0,
+        "ndcg@5": 0.0,
+        "recall@10": 0.0,
+        "precision@10": 0.0,
+        "hit_rate@10": 0.0,
+        "ndcg@10": 0.0,
+        "mrr@5": 0.0
+      },
+      "case_results": [
+        {
+          "case_id": "agent-runtime-loop",
+          "query": "How does the Agent Runtime main loop assemble context and call the LLM?",
+          "retrieved_chunk_ids": [],
+          "retrieved_document_ids": [],
+          "relevant_chunk_ids": [],
+          "relevant_document_ids": [
+            "agent_runtime"
+          ],
+          "hit_at_k": {
+            "1": false,
+            "3": false,
+            "5": false,
+            "10": false
+          },
+          "recall_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "precision_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "reciprocal_rank": 0.0,
+          "ndcg_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "first_relevant_rank": null,
+          "trace_id": "ktrace_86ff19f7894d4bd1b49e15e6",
+          "error": null
+        },
+        {
+          "case_id": "long-term-memory",
+          "query": "How is long-term memory retrieved into the current conversation?",
+          "retrieved_chunk_ids": [],
+          "retrieved_document_ids": [],
+          "relevant_chunk_ids": [],
+          "relevant_document_ids": [
+            "memory_system"
+          ],
+          "hit_at_k": {
+            "1": false,
+            "3": false,
+            "5": false,
+            "10": false
+          },
+          "recall_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "precision_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "reciprocal_rank": 0.0,
+          "ndcg_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "first_relevant_rank": null,
+          "trace_id": "ktrace_5d88e5508fff415fb9d11819",
+          "error": null
+        },
+        {
+          "case_id": "tool-calling",
+          "query": "Where are tool calling and function calling handled?",
+          "retrieved_chunk_ids": [],
+          "retrieved_document_ids": [],
+          "relevant_chunk_ids": [],
+          "relevant_document_ids": [
+            "tool_system"
+          ],
+          "hit_at_k": {
+            "1": false,
+            "3": false,
+            "5": false,
+            "10": false
+          },
+          "recall_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "precision_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "reciprocal_rank": 0.0,
+          "ndcg_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "first_relevant_rank": null,
+          "trace_id": "ktrace_d222d19977dd4604b94062b9",
+          "error": null
+        },
+        {
+          "case_id": "plugin-system",
+          "query": "How can plugins register tools or lifecycle hooks?",
+          "retrieved_chunk_ids": [],
+          "retrieved_document_ids": [],
+          "relevant_chunk_ids": [],
+          "relevant_document_ids": [
+            "plugins"
+          ],
+          "hit_at_k": {
+            "1": false,
+            "3": false,
+            "5": false,
+            "10": false
+          },
+          "recall_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "precision_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "reciprocal_rank": 0.0,
+          "ndcg_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "first_relevant_rank": null,
+          "trace_id": "ktrace_b2123364a32c45138d4879e4",
+          "error": null
+        },
+        {
+          "case_id": "proactive-scheduler",
+          "query": "How do proactive tasks and scheduler background jobs run?",
+          "retrieved_chunk_ids": [],
+          "retrieved_document_ids": [],
+          "relevant_chunk_ids": [],
+          "relevant_document_ids": [
+            "proactive_system"
+          ],
+          "hit_at_k": {
+            "1": false,
+            "3": false,
+            "5": false,
+            "10": false
+          },
+          "recall_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "precision_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "reciprocal_rank": 0.0,
+          "ndcg_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "first_relevant_rank": null,
+          "trace_id": "ktrace_6bbf2a0a9b0f42238004e0ac",
+          "error": null
+        },
+        {
+          "case_id": "langgraph-workflow",
+          "query": "What does the LangGraph workflow orchestration backend do?",
+          "retrieved_chunk_ids": [],
+          "retrieved_document_ids": [],
+          "relevant_chunk_ids": [],
+          "relevant_document_ids": [
+            "langgraph_workflow"
+          ],
+          "hit_at_k": {
+            "1": false,
+            "3": false,
+            "5": false,
+            "10": false
+          },
+          "recall_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "precision_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "reciprocal_rank": 0.0,
+          "ndcg_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "first_relevant_rank": null,
+          "trace_id": "ktrace_e028af9fad174fd8a1f7277b",
+          "error": null
+        },
+        {
+          "case_id": "hybrid-rag",
+          "query": "How does Hybrid RAG use vector search BM25 and RRF?",
+          "retrieved_chunk_ids": [],
+          "retrieved_document_ids": [],
+          "relevant_chunk_ids": [],
+          "relevant_document_ids": [
+            "knowledge_system"
+          ],
+          "hit_at_k": {
+            "1": false,
+            "3": false,
+            "5": false,
+            "10": false
+          },
+          "recall_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "precision_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "reciprocal_rank": 0.0,
+          "ndcg_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "first_relevant_rank": null,
+          "trace_id": "ktrace_91ad5799929e450c81d1ab44",
+          "error": null
+        },
+        {
+          "case_id": "citation-validation",
+          "query": "How are knowledge citations validated?",
+          "retrieved_chunk_ids": [],
+          "retrieved_document_ids": [],
+          "relevant_chunk_ids": [],
+          "relevant_document_ids": [
+            "citation"
+          ],
+          "hit_at_k": {
+            "1": false,
+            "3": false,
+            "5": false,
+            "10": false
+          },
+          "recall_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "precision_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "reciprocal_rank": 0.0,
+          "ndcg_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "first_relevant_rank": null,
+          "trace_id": "ktrace_eff3f1d105ad4815a8a1e313",
+          "error": null
+        },
+        {
+          "case_id": "dashboard-observability",
+          "query": "How can the dashboard inspect knowledge retrieval traces?",
+          "retrieved_chunk_ids": [],
+          "retrieved_document_ids": [],
+          "relevant_chunk_ids": [],
+          "relevant_document_ids": [
+            "dashboard"
+          ],
+          "hit_at_k": {
+            "1": false,
+            "3": false,
+            "5": false,
+            "10": false
+          },
+          "recall_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "precision_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "reciprocal_rank": 0.0,
+          "ndcg_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "first_relevant_rank": null,
+          "trace_id": "ktrace_39aa60a4c4b74c9eb5163cf4",
+          "error": null
+        },
+        {
+          "case_id": "token-cost-evaluation",
+          "query": "How does token cost evaluation estimate prompt and tool schema cost?",
+          "retrieved_chunk_ids": [],
+          "retrieved_document_ids": [],
+          "relevant_chunk_ids": [],
+          "relevant_document_ids": [
+            "token_cost_optimization"
+          ],
+          "hit_at_k": {
+            "1": false,
+            "3": false,
+            "5": false,
+            "10": false
+          },
+          "recall_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "precision_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "reciprocal_rank": 0.0,
+          "ndcg_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "first_relevant_rank": null,
+          "trace_id": "ktrace_797bed3e822b482e8e665971",
+          "error": null
+        }
+      ]
+    },
+    {
+      "retriever_name": "hybrid_rrf",
+      "metrics": {
+        "recall@1": 0.0,
+        "precision@1": 0.0,
+        "hit_rate@1": 0.0,
+        "ndcg@1": 0.0,
+        "recall@3": 0.0,
+        "precision@3": 0.0,
+        "hit_rate@3": 0.0,
+        "ndcg@3": 0.0,
+        "recall@5": 0.0,
+        "precision@5": 0.0,
+        "hit_rate@5": 0.0,
+        "ndcg@5": 0.0,
+        "recall@10": 0.0,
+        "precision@10": 0.0,
+        "hit_rate@10": 0.0,
+        "ndcg@10": 0.0,
+        "mrr@5": 0.0
+      },
+      "case_results": [
+        {
+          "case_id": "agent-runtime-loop",
+          "query": "How does the Agent Runtime main loop assemble context and call the LLM?",
+          "retrieved_chunk_ids": [],
+          "retrieved_document_ids": [],
+          "relevant_chunk_ids": [],
+          "relevant_document_ids": [
+            "agent_runtime"
+          ],
+          "hit_at_k": {
+            "1": false,
+            "3": false,
+            "5": false,
+            "10": false
+          },
+          "recall_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "precision_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "reciprocal_rank": 0.0,
+          "ndcg_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "first_relevant_rank": null,
+          "trace_id": "ktrace_bab00a2c88a14c51b0af6afd",
+          "error": null
+        },
+        {
+          "case_id": "long-term-memory",
+          "query": "How is long-term memory retrieved into the current conversation?",
+          "retrieved_chunk_ids": [],
+          "retrieved_document_ids": [],
+          "relevant_chunk_ids": [],
+          "relevant_document_ids": [
+            "memory_system"
+          ],
+          "hit_at_k": {
+            "1": false,
+            "3": false,
+            "5": false,
+            "10": false
+          },
+          "recall_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "precision_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "reciprocal_rank": 0.0,
+          "ndcg_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "first_relevant_rank": null,
+          "trace_id": "ktrace_e89ed989b8414f22a7563688",
+          "error": null
+        },
+        {
+          "case_id": "tool-calling",
+          "query": "Where are tool calling and function calling handled?",
+          "retrieved_chunk_ids": [],
+          "retrieved_document_ids": [],
+          "relevant_chunk_ids": [],
+          "relevant_document_ids": [
+            "tool_system"
+          ],
+          "hit_at_k": {
+            "1": false,
+            "3": false,
+            "5": false,
+            "10": false
+          },
+          "recall_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "precision_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "reciprocal_rank": 0.0,
+          "ndcg_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "first_relevant_rank": null,
+          "trace_id": "ktrace_7aa80874e00c4cc3ad45ffd4",
+          "error": null
+        },
+        {
+          "case_id": "plugin-system",
+          "query": "How can plugins register tools or lifecycle hooks?",
+          "retrieved_chunk_ids": [],
+          "retrieved_document_ids": [],
+          "relevant_chunk_ids": [],
+          "relevant_document_ids": [
+            "plugins"
+          ],
+          "hit_at_k": {
+            "1": false,
+            "3": false,
+            "5": false,
+            "10": false
+          },
+          "recall_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "precision_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "reciprocal_rank": 0.0,
+          "ndcg_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "first_relevant_rank": null,
+          "trace_id": "ktrace_f59048823b9e4fee94d1fd18",
+          "error": null
+        },
+        {
+          "case_id": "proactive-scheduler",
+          "query": "How do proactive tasks and scheduler background jobs run?",
+          "retrieved_chunk_ids": [],
+          "retrieved_document_ids": [],
+          "relevant_chunk_ids": [],
+          "relevant_document_ids": [
+            "proactive_system"
+          ],
+          "hit_at_k": {
+            "1": false,
+            "3": false,
+            "5": false,
+            "10": false
+          },
+          "recall_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "precision_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "reciprocal_rank": 0.0,
+          "ndcg_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "first_relevant_rank": null,
+          "trace_id": "ktrace_4f426b64b0044ce4aaf0b6d2",
+          "error": null
+        },
+        {
+          "case_id": "langgraph-workflow",
+          "query": "What does the LangGraph workflow orchestration backend do?",
+          "retrieved_chunk_ids": [],
+          "retrieved_document_ids": [],
+          "relevant_chunk_ids": [],
+          "relevant_document_ids": [
+            "langgraph_workflow"
+          ],
+          "hit_at_k": {
+            "1": false,
+            "3": false,
+            "5": false,
+            "10": false
+          },
+          "recall_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "precision_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "reciprocal_rank": 0.0,
+          "ndcg_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "first_relevant_rank": null,
+          "trace_id": "ktrace_ffc2ae7c814a4866be18f392",
+          "error": null
+        },
+        {
+          "case_id": "hybrid-rag",
+          "query": "How does Hybrid RAG use vector search BM25 and RRF?",
+          "retrieved_chunk_ids": [],
+          "retrieved_document_ids": [],
+          "relevant_chunk_ids": [],
+          "relevant_document_ids": [
+            "knowledge_system"
+          ],
+          "hit_at_k": {
+            "1": false,
+            "3": false,
+            "5": false,
+            "10": false
+          },
+          "recall_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "precision_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "reciprocal_rank": 0.0,
+          "ndcg_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "first_relevant_rank": null,
+          "trace_id": "ktrace_7cbd30454aa94ec5a61d5b16",
+          "error": null
+        },
+        {
+          "case_id": "citation-validation",
+          "query": "How are knowledge citations validated?",
+          "retrieved_chunk_ids": [],
+          "retrieved_document_ids": [],
+          "relevant_chunk_ids": [],
+          "relevant_document_ids": [
+            "citation"
+          ],
+          "hit_at_k": {
+            "1": false,
+            "3": false,
+            "5": false,
+            "10": false
+          },
+          "recall_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "precision_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "reciprocal_rank": 0.0,
+          "ndcg_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "first_relevant_rank": null,
+          "trace_id": "ktrace_344983c28e70472eaa79ace8",
+          "error": null
+        },
+        {
+          "case_id": "dashboard-observability",
+          "query": "How can the dashboard inspect knowledge retrieval traces?",
+          "retrieved_chunk_ids": [],
+          "retrieved_document_ids": [],
+          "relevant_chunk_ids": [],
+          "relevant_document_ids": [
+            "dashboard"
+          ],
+          "hit_at_k": {
+            "1": false,
+            "3": false,
+            "5": false,
+            "10": false
+          },
+          "recall_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "precision_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "reciprocal_rank": 0.0,
+          "ndcg_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "first_relevant_rank": null,
+          "trace_id": "ktrace_b4c648ce6f1c437896b29b53",
+          "error": null
+        },
+        {
+          "case_id": "token-cost-evaluation",
+          "query": "How does token cost evaluation estimate prompt and tool schema cost?",
+          "retrieved_chunk_ids": [],
+          "retrieved_document_ids": [],
+          "relevant_chunk_ids": [],
+          "relevant_document_ids": [
+            "token_cost_optimization"
+          ],
+          "hit_at_k": {
+            "1": false,
+            "3": false,
+            "5": false,
+            "10": false
+          },
+          "recall_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "precision_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "reciprocal_rank": 0.0,
+          "ndcg_at_k": {
+            "1": 0.0,
+            "3": 0.0,
+            "5": 0.0,
+            "10": 0.0
+          },
+          "first_relevant_rank": null,
+          "trace_id": "ktrace_6ee35e97096d4f9fa1359593",
+          "error": null
+        }
+      ]
+    }
+  ]
+}

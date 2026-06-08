@@ -1,0 +1,86 @@
+{
+  "name": "knowledge_rag_runtime_sample",
+  "description": "Lightweight retrieval evaluation cases for the Personal AI Agent Runtime knowledge pipeline.",
+  "cases": [
+    {
+      "case_id": "agent-runtime-loop",
+      "query": "How does the Agent Runtime main loop assemble context and call the LLM?",
+      "relevant_chunk_ids": [],
+      "relevant_document_ids": ["agent_runtime"],
+      "expected_keywords": ["agent runtime", "prompt assembly", "LLM"],
+      "notes": "Covers the main passive turn and prompt assembly workflow."
+    },
+    {
+      "case_id": "long-term-memory",
+      "query": "How is long-term memory retrieved into the current conversation?",
+      "relevant_chunk_ids": [],
+      "relevant_document_ids": ["memory_system"],
+      "expected_keywords": ["long-term memory", "retrieval", "context"],
+      "notes": "Covers durable memory retrieval and context injection."
+    },
+    {
+      "case_id": "tool-calling",
+      "query": "Where are tool calling and function calling handled?",
+      "relevant_chunk_ids": [],
+      "relevant_document_ids": ["tool_system"],
+      "expected_keywords": ["tool calling", "function calling", "tool execution"],
+      "notes": "Covers tool registry and execution."
+    },
+    {
+      "case_id": "plugin-system",
+      "query": "How can plugins register tools or lifecycle hooks?",
+      "relevant_chunk_ids": [],
+      "relevant_document_ids": ["plugins"],
+      "expected_keywords": ["plugin", "lifecycle", "hook"],
+      "notes": "Covers plugin extension points."
+    },
+    {
+      "case_id": "proactive-scheduler",
+      "query": "How do proactive tasks and scheduler background jobs run?",
+      "relevant_chunk_ids": [],
+      "relevant_document_ids": ["proactive_system"],
+      "expected_keywords": ["scheduler", "background task", "proactive"],
+      "notes": "Covers proactive runtime and scheduling."
+    },
+    {
+      "case_id": "langgraph-workflow",
+      "query": "What does the LangGraph workflow orchestration backend do?",
+      "relevant_chunk_ids": [],
+      "relevant_document_ids": ["langgraph_workflow"],
+      "expected_keywords": ["LangGraph", "workflow", "StateGraph"],
+      "notes": "Covers optional LangGraph orchestration."
+    },
+    {
+      "case_id": "hybrid-rag",
+      "query": "How does Hybrid RAG use vector search BM25 and RRF?",
+      "relevant_chunk_ids": [],
+      "relevant_document_ids": ["knowledge_system"],
+      "expected_keywords": ["BM25", "vector search", "RRF"],
+      "notes": "Covers knowledge retrieval algorithm."
+    },
+    {
+      "case_id": "citation-validation",
+      "query": "How are knowledge citations validated?",
+      "relevant_chunk_ids": [],
+      "relevant_document_ids": ["citation"],
+      "expected_keywords": ["citation", "validation", "source"],
+      "notes": "Covers citation validation and source checking."
+    },
+    {
+      "case_id": "dashboard-observability",
+      "query": "How can the dashboard inspect knowledge retrieval traces?",
+      "relevant_chunk_ids": [],
+      "relevant_document_ids": ["dashboard"],
+      "expected_keywords": ["dashboard", "observability", "trace"],
+      "notes": "Covers dashboard observability for retrieval."
+    },
+    {
+      "case_id": "token-cost-evaluation",
+      "query": "How does token cost evaluation estimate prompt and tool schema cost?",
+      "relevant_chunk_ids": [],
+      "relevant_document_ids": ["token_cost_optimization"],
+      "expected_keywords": ["token cost", "prompt", "tool schema"],
+      "notes": "Covers offline token cost evaluation."
+    }
+  ]
+}

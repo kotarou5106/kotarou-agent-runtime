@@ -11,7 +11,7 @@ following what the Agent can do.
 | `app/` | App startup, human entrypoints | CLI entrypoints, startup adapters, app-level routing |
 | `agent_runtime/` | Prompt chaining, reasoning, tool loop | turn lifecycle, prompt assembly, LLM loop, tools, MCP client, built-in skills |
 | `conversation_patterns/` | Routing, passive chat, proactive chat | reusable conversation flow patterns and response parsing |
-| `memory_system/` | Memory management, RAG, learning | long-term memory APIs, semantic retrieval, consolidation, adaptation |
+| `memory_system/` | Memory management, RAG, correction | long-term memory APIs, semantic retrieval, consolidation, correction |
 | `tool_system/` | Tool use, discovery, execution | tool registry, tool execution, hooks, MCP-backed tools |
 | `planning_system/` | Planning, background work | scheduler, drift tasks, resource-aware maintenance |
 | `proactive_system/` | Goal monitoring, priority ranking | proactive tick, sources, judge, dedupe, delivery, ACK |

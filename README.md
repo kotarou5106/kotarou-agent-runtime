@@ -99,7 +99,7 @@ User Message
 ## Main Modules
 
 - `agent_runtime/`: Agent 主运行时，包含 core loop、turn 处理、prompting、retrieval、tool hooks、plugins、lifecycle、background 和 policy。
-- `memory_system/`: 长期记忆相关模块，包含 consolidation、learning、markdown memory、memory tools 和 retrieval。
+- `memory_system/`: 长期记忆相关模块，包含 consolidation、correction、markdown memory、memory tools 和 retrieval。
 - `knowledge_system/`: RAG 知识系统，包含 loading、chunking、embedding、indexing、retrieval 和 injection。
 - `tool_system/`: 工具系统，包含 built-in tools、registry、tool discovery、execution、MCP tools 和 tool hooks。
 - `proactive_system/`: 主动任务运行时，负责 delivery 等主动触达链路。

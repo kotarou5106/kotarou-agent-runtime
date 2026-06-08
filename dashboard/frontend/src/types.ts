@@ -107,6 +107,7 @@ export interface KnowledgeRetrievalEventRow {
   query: string;
   retrieved_chunk_ids: string[];
   injected_chunk_ids: string[];
+  trace?: Record<string, unknown>;
   created_at: string;
 }
 
