@@ -8,7 +8,7 @@ import logging
 import asyncio
 import html
 import json
-from collections.abc import Coroutine
+from collections.abc import Awaitable, Callable, Coroutine
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -34,6 +34,7 @@ from agent_runtime.events.events_lifecycle import (
 )
 from agent_runtime.events.queue import MessageBus
 from agent_runtime.looping.interrupt import InterruptController
+from agent_runtime.network_proxy import log_proxy_env, select_http_proxy
 from connectors.channels.base import AttachmentStore, MessageDeduper, SessionIdentityIndex
 from connectors.channels.telegram_utils import (
     TelegramOutboundLimiter,
@@ -56,6 +57,21 @@ _REPLY_LIVE_TAIL = 1100
 _TOOL_PREVIEW_LIMIT = 80
 _LIVE_STREAM_MIN_INTERVAL_S = 2.5
 _LIVE_STREAM_MIN_CHARS = 200
+
+TelegramDailyTaskRunner = Callable[[str, str], Awaitable[None]]
+_DAILY_TASK_COMMANDS: dict[str, str] = {
+    "daily_summary": "telegram_daily_summary",
+    "morning_greeting": "morning_greeting",
+    "audio_collect": "telegram_audio_collector",
+    "daily_tasks": "telegram_daily_tasks",
+}
+_DAILY_TASK_LABELS: dict[str, str] = {
+    "telegram_daily_summary": "telegram_daily_summary",
+    "morning_greeting": "morning_greeting",
+    "telegram_audio_collector": "telegram_audio_collector",
+    "telegram_daily_tasks": "telegram_daily_tasks",
+}
+_KNOWN_COMMANDS = {*_DAILY_TASK_COMMANDS, "stop"}
 
 
 @dataclass
@@ -82,6 +98,7 @@ class TelegramChannel:
         live_edit: bool = False,
         stream_response: bool = False,
         show_thinking: bool = False,
+        daily_task_runner: TelegramDailyTaskRunner | None = None,
     ) -> None:
         self._bus = bus
         self._session_manager = session_manager
@@ -90,6 +107,7 @@ class TelegramChannel:
         self._live_edit = bool(live_edit)
         self._stream_response = bool(stream_response)
         self._show_thinking = bool(show_thinking)
+        self._daily_task_runner = daily_task_runner
         self._allow_from: set[str] = set(allow_from) if allow_from else set()
         self._message_deduper = MessageDeduper(_SEEN_MSG_MAXSIZE)
         ws = getattr(session_manager, "workspace", None)
@@ -100,9 +118,32 @@ class TelegramChannel:
             metadata_key="username",
             normalizer=lambda value: value.lower(),
         )
-        self._app = Application.builder().token(token).build()
+        builder = Application.builder().token(token)
+        proxy = select_http_proxy()
+        log_proxy_env("telegram", once=True)
+        if proxy is not None:
+            configured = False
+            for method_name in ("proxy", "get_updates_proxy"):
+                method = getattr(builder, method_name, None)
+                if method is None:
+                    logger.warning(
+                        "[telegram] bot api proxy method unavailable method=%s source=%s",
+                        method_name,
+                        proxy.source,
+                    )
+                    continue
+                builder = method(proxy.url)
+                configured = True
+            logger.info(
+                "[telegram] bot api proxy configured=%s source=%s",
+                configured,
+                proxy.source,
+            )
+        self._app = builder.build()
         self._bot_commands = bot_commands or []
         self._app.add_handler(CommandHandler("stop", self._on_stop_command))
+        for command in _DAILY_TASK_COMMANDS:
+            self._app.add_handler(CommandHandler(command, self._on_daily_task_command))
         self._app.add_handler(
             MessageHandler(filters.COMMAND, self._on_command)
         )
@@ -115,6 +156,9 @@ class TelegramChannel:
         self._app.add_handler(
             MessageHandler(filters.Document.ALL & ~filters.COMMAND, self._on_document)
         )
+        add_error_handler = getattr(self._app, "add_error_handler", None)
+        if add_error_handler is not None:
+            add_error_handler(self._on_error)
         bus.subscribe_outbound(self._channel, self._on_response)
         if event_bus is not None and self._live_edit:
             event_bus.on(TurnStarted, self._on_turn_started)
@@ -171,7 +215,33 @@ class TelegramChannel:
 
     async def start(self) -> None:
         self._rebuild_user_map()
+        handler_count = _count_handlers(getattr(self._app, "handlers", None))
+        logger.info(
+            "[telegram] starting channel=%s allow_from=%s live_edit=%s "
+            "stream_response=%s show_thinking=%s handlers=%d",
+            self._channel,
+            sorted(self._allow_from) if self._allow_from else "ALL",
+            self._live_edit,
+            self._stream_response,
+            self._show_thinking,
+            handler_count,
+        )
+        logger.info(
+            "[telegram] using polling. If webhook is configured for this bot, "
+            "clear it with: curl \"https://api.telegram.org/bot<TOKEN>/deleteWebhook?drop_pending_updates=false\""
+        )
         await self._app.initialize()
+        get_me = getattr(self._app.bot, "get_me", None)
+        if get_me is not None:
+            me = await get_me()
+            logger.info(
+                "[telegram] bot identity username=@%s id=%s first_name=%r",
+                getattr(me, "username", None),
+                getattr(me, "id", None),
+                getattr(me, "first_name", None),
+            )
+        else:
+            logger.info("[telegram] bot identity unavailable: bot.get_me missing")
         await self._app.start()
         await self._register_bot_commands()
         updater = self._app.updater
@@ -180,6 +250,11 @@ class TelegramChannel:
         await updater.start_polling(
             allowed_updates=Update.ALL_TYPES,
             error_callback=self._on_polling_error,
+        )
+        logger.info(
+            "[telegram] polling started running=%s allowed_updates=ALL_TYPES known_users=%d",
+            getattr(updater, "running", None),
+            len(self.user_map),
         )
         logger.info(f"TelegramChannel 已启动  已知用户: {len(self.user_map)}")
 
@@ -216,6 +291,10 @@ class TelegramChannel:
             BotCommand(command, description)
             for command, description in [
                 *self._bot_commands,
+                ("daily_summary", "手动触发 Telegram 每日群话题总结"),
+                ("morning_greeting", "手动生成早安鼓励消息"),
+                ("audio_collect", "手动采集配置频道中的音频"),
+                ("daily_tasks", "依次执行每日总结、早安和音频采集"),
                 ("stop", "中断当前回复"),
             ]
         ]
@@ -240,85 +319,160 @@ class TelegramChannel:
     async def _on_message(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> None:
-        msg = update.effective_message
-        chat = update.effective_chat
-        user = update.effective_user
+        try:
+            msg = update.effective_message
+            chat = update.effective_chat
+            user = update.effective_user
 
-        if not msg or not msg.text or not chat or not user:
-            return
-
-        if not self._is_allowed(user):
-            logger.warning(
-                f"[telegram] 拒绝未授权用户  id={user.id}  username=@{user.username}"
+            logger.info(
+                "[telegram] message handler entered update_id=%s chat_id=%s user_id=%s username=@%s text=%r",
+                getattr(update, "update_id", None),
+                getattr(chat, "id", None),
+                getattr(user, "id", None),
+                getattr(user, "username", None),
+                _preview_text(getattr(msg, "text", None)),
             )
-            return
 
-        # 去重：同一 (chat_id, message_id) 只处理一次，防止 Telegram 重投
-        msg_key = f"{chat.id}:{msg.message_id}"
-        if self._message_deduper.seen(msg_key):
-            logger.warning(
-                f"[telegram] 重复消息已忽略  chat_id={chat.id}  message_id={msg.message_id}"
-            )
-            return
-
-        preview = msg.text[:60] + "..." if len(msg.text) > 60 else msg.text
-        logger.info(
-            f"[telegram] 收到消息  chat_id={chat.id}  "
-            f"user=@{user.username or user.id}  内容: {preview!r}"
-        )
-
-        # 更新内存索引 + 持久化到 session.metadata
-        chat_id_str = str(chat.id)
-        await self._remember_username(chat_id_str, user.username)
-
-        await self._safe_send_typing(context, chat.id)
-
-        inbound_text, reply_meta = _build_inbound_text_with_reply(
-            msg.text, msg.reply_to_message
-        )
-        reply_media: list[str] = []
-        if msg.reply_to_message and getattr(msg.reply_to_message, "photo", None):
-            try:
-                tg_file = await context.bot.get_file(
-                    msg.reply_to_message.photo[-1].file_id
-                )
-                tmp = self._attachments.create_path("reply_photo_", ".jpg")
-                await tg_file.download_to_drive(tmp)
-                reply_media.append(str(tmp))
-                logger.info(f"[telegram] 下载被回复图片  chat_id={chat.id}  tmp={tmp}")
-            except Exception as e:
+            if not msg:
+                logger.warning("[telegram] message ignored: missing effective_message")
+                return
+            if not chat:
+                logger.warning("[telegram] message ignored: missing effective_chat")
+                return
+            if not user:
+                logger.warning("[telegram] message ignored: missing effective_user chat_id=%s", chat.id)
+                return
+            if not msg.text:
                 logger.warning(
-                    f"[telegram] 被回复图片下载失败  chat_id={chat.id}  err={e}"
+                    "[telegram] message ignored: empty text chat_id=%s user_id=%s message_id=%s",
+                    chat.id,
+                    user.id,
+                    getattr(msg, "message_id", None),
                 )
-        if msg.reply_to_message and getattr(msg.reply_to_message, "document", None):
-            try:
-                rdoc = msg.reply_to_message.document
-                if rdoc is None:
-                    raise ValueError("reply document 缺失")
-                suffix = ""
-                if rdoc.file_name and "." in rdoc.file_name:
-                    suffix = "." + rdoc.file_name.rsplit(".", 1)[-1]
-                tg_file = await context.bot.get_file(rdoc.file_id)
-                tmp = self._attachments.create_path("reply_doc_", suffix)
-                await tg_file.download_to_drive(tmp)
-                reply_media.append(str(tmp))
-                logger.info(
-                    f"[telegram] 下载被回复文件  chat_id={chat.id}  filename={rdoc.file_name!r}  tmp={tmp}"
-                )
-            except Exception as e:
+                return
+
+            if not self._is_allowed(user):
                 logger.warning(
-                    f"[telegram] 被回复文件下载失败  chat_id={chat.id}  err={e}"
+                    "[telegram] message rejected by allow_from chat_id=%s user_id=%s username=@%s allow_from=%s",
+                    chat.id,
+                    user.id,
+                    user.username,
+                    sorted(self._allow_from),
                 )
-        await self._bus.publish_inbound(
-            InboundMessage(
-                channel=self._channel,
-                sender=str(user.id),
-                chat_id=str(chat.id),
-                content=inbound_text,
-                media=reply_media,
-                metadata=self._inbound_metadata(user.username, reply_meta),
+                return
+
+            text = str(msg.text or "")
+            slash_lines = _slash_command_lines(text)
+            if slash_lines:
+                if len(slash_lines) > 1:
+                    await send_markdown(
+                        self._app.bot,
+                        str(chat.id),
+                        "请一次只发送一个命令。",
+                        self._telegram_outbound_limiter,
+                    )
+                    return
+                command = slash_lines[0].lstrip("/").split("@", 1)[0].split()[0]
+                if command == "ping":
+                    await send_markdown(
+                        self._app.bot,
+                        str(chat.id),
+                        "pong",
+                        self._telegram_outbound_limiter,
+                    )
+                    return
+                if command in _DAILY_TASK_COMMANDS:
+                    await self._on_daily_task_command(update, context)
+                    return
+                await send_markdown(
+                    self._app.bot,
+                    str(chat.id),
+                    f"未知命令：/{command}。请一次只发送一个已支持的命令。",
+                    self._telegram_outbound_limiter,
+                )
+                return
+
+            message_id = int(getattr(msg, "message_id", 0) or 0)
+            deduper = getattr(self, "_message_deduper", None)
+            # 去重：同一 (chat_id, message_id) 只处理一次，防止 Telegram 重投
+            if message_id and deduper is not None:
+                msg_key = f"{chat.id}:{message_id}"
+                if deduper.seen(msg_key):
+                    logger.warning(
+                        f"[telegram] 重复消息已忽略  chat_id={chat.id}  message_id={message_id}"
+                    )
+                    return
+
+            preview = msg.text[:60] + "..." if len(msg.text) > 60 else msg.text
+            logger.info(
+                f"[telegram] 收到消息  chat_id={chat.id}  "
+                f"user=@{user.username or user.id}  内容: {preview!r}"
             )
-        )
+
+            # 更新内存索引 + 持久化到 session.metadata
+            chat_id_str = str(chat.id)
+            if getattr(self, "_identity_index", None) is not None:
+                await self._remember_username(chat_id_str, user.username)
+
+            await self._safe_send_typing(context, chat.id)
+
+            reply_message = getattr(msg, "reply_to_message", None)
+            inbound_text, reply_meta = _build_inbound_text_with_reply(
+                msg.text, reply_message
+            )
+            reply_media: list[str] = []
+            if reply_message and getattr(reply_message, "photo", None):
+                try:
+                    tg_file = await context.bot.get_file(
+                        reply_message.photo[-1].file_id
+                    )
+                    tmp = self._attachments.create_path("reply_photo_", ".jpg")
+                    await tg_file.download_to_drive(tmp)
+                    reply_media.append(str(tmp))
+                    logger.info(f"[telegram] 下载被回复图片  chat_id={chat.id}  tmp={tmp}")
+                except Exception as e:
+                    logger.warning(
+                        f"[telegram] 被回复图片下载失败  chat_id={chat.id}  err={e}"
+                    )
+            if reply_message and getattr(reply_message, "document", None):
+                try:
+                    rdoc = reply_message.document
+                    if rdoc is None:
+                        raise ValueError("reply document 缺失")
+                    suffix = ""
+                    if rdoc.file_name and "." in rdoc.file_name:
+                        suffix = "." + rdoc.file_name.rsplit(".", 1)[-1]
+                    tg_file = await context.bot.get_file(rdoc.file_id)
+                    tmp = self._attachments.create_path("reply_doc_", suffix)
+                    await tg_file.download_to_drive(tmp)
+                    reply_media.append(str(tmp))
+                    logger.info(
+                        f"[telegram] 下载被回复文件  chat_id={chat.id}  filename={rdoc.file_name!r}  tmp={tmp}"
+                    )
+                except Exception as e:
+                    logger.warning(
+                        f"[telegram] 被回复文件下载失败  chat_id={chat.id}  err={e}"
+                    )
+            await self._bus.publish_inbound(
+                InboundMessage(
+                    channel=self._channel,
+                    sender=str(user.id),
+                    chat_id=str(chat.id),
+                    content=inbound_text,
+                    media=reply_media,
+                    metadata=self._inbound_metadata(user.username, reply_meta),
+                )
+            )
+            logger.info(
+                "[telegram] inbound published channel=%s chat_id=%s user_id=%s message_id=%s",
+                self._channel,
+                chat.id,
+                user.id,
+                msg.message_id,
+            )
+        except Exception:
+            logger.exception("[telegram] text message handler failed")
+            raise
 
     async def _on_stop_command(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
@@ -371,6 +525,27 @@ class TelegramChannel:
             )
             return
 
+        text = str(getattr(msg, "text", "") or "")
+        slash_lines = _slash_command_lines(text)
+        if len(slash_lines) > 1:
+            await send_markdown(
+                self._app.bot,
+                str(chat.id),
+                "请一次只发送一个命令。",
+                self._telegram_outbound_limiter,
+            )
+            return
+        if slash_lines:
+            command = slash_lines[0].lstrip("/").split("@", 1)[0].split()[0]
+            if command not in _KNOWN_COMMANDS:
+                await send_markdown(
+                    self._app.bot,
+                    str(chat.id),
+                    f"未知命令：/{command}。请一次只发送一个已支持的命令。",
+                    self._telegram_outbound_limiter,
+                )
+                return
+
         await self._bus.publish_inbound(
             InboundMessage(
                 channel=self._channel,
@@ -380,6 +555,65 @@ class TelegramChannel:
                 metadata=self._inbound_metadata(user.username),
             )
         )
+
+    async def _on_daily_task_command(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> None:
+        msg = update.effective_message
+        chat = update.effective_chat
+        user = update.effective_user
+
+        if not msg or not chat or not user:
+            return
+        if not self._is_allowed(user):
+            logger.warning(
+                f"[telegram] 拒绝未授权 daily task 命令  id={user.id}  username=@{user.username}"
+            )
+            return
+        if self._daily_task_runner is None:
+            await send_markdown(
+                self._app.bot,
+                str(chat.id),
+                "当前未启用 Telegram 后台任务命令。",
+                self._telegram_outbound_limiter,
+            )
+            return
+
+        text = str(getattr(msg, "text", "") or "")
+        slash_lines = _slash_command_lines(text)
+        if len(slash_lines) > 1:
+            await send_markdown(
+                self._app.bot,
+                str(chat.id),
+                "请一次只发送一个命令。",
+                self._telegram_outbound_limiter,
+            )
+            return
+
+        command_text = text.strip().split()[0]
+        command = command_text.lstrip("/").split("@", 1)[0]
+        task_name = _DAILY_TASK_COMMANDS.get(command)
+        if task_name is None:
+            await self._on_command(update, context)
+            return
+
+        label = _DAILY_TASK_LABELS[task_name]
+        await send_markdown(
+            self._app.bot,
+            str(chat.id),
+            f"已开始执行 {label}，请稍等。",
+            self._telegram_outbound_limiter,
+        )
+        try:
+            await self._daily_task_runner(task_name, str(chat.id))
+        except Exception as exc:
+            logger.exception("[telegram] daily task command failed task=%s chat_id=%s", task_name, chat.id)
+            await send_markdown(
+                self._app.bot,
+                str(chat.id),
+                f"{label} 执行失败：{type(exc).__name__}: {exc}",
+                self._telegram_outbound_limiter,
+            )
 
     async def _on_photo(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
@@ -859,13 +1093,25 @@ class TelegramChannel:
             if self._polling_conflict_task is None:
                 logger.error(
                     "[telegram] 检测到 getUpdates 冲突，已暂停 Telegram 接收。"
-                    "请确保同一 bot token 仅运行一个轮询实例。"
+                    "请确保同一 bot token 仅运行一个轮询实例；如果此前设置过 webhook，"
+                    "请执行：curl \"https://api.telegram.org/bot<TOKEN>/deleteWebhook?drop_pending_updates=false\""
                 )
                 self._polling_conflict_task = asyncio.create_task(
                     self._disable_polling_on_conflict()
                 )
             return
         logger.warning("[telegram] polling 异常，框架将自动重试: %s", exc)
+
+    async def _on_error(
+        self,
+        update: object,
+        context: ContextTypes.DEFAULT_TYPE,
+    ) -> None:
+        logger.exception(
+            "[telegram] handler exception update=%r",
+            update,
+            exc_info=context.error,
+        )
 
     async def _disable_polling_on_conflict(self) -> None:
         """Conflict 时关闭 updater 轮询，保留 bot 发送能力。"""
@@ -879,6 +1125,20 @@ class TelegramChannel:
             )
         except Exception as e:
             logger.warning("[telegram] 停止 polling 失败: %s", e)
+
+
+def _preview_text(text: object, limit: int = 80) -> str:
+    if not isinstance(text, str):
+        return ""
+    return text[:limit] + "..." if len(text) > limit else text
+
+
+def _count_handlers(handlers: object) -> int:
+    if isinstance(handlers, dict):
+        return sum(len(group) for group in handlers.values())
+    if isinstance(handlers, list):
+        return len(handlers)
+    return 0
 
 
 def _format_turn_live(
@@ -982,6 +1242,14 @@ def _tail_text(text: str, limit: int) -> str:
     if len(text) <= limit:
         return text
     return "..." + text[-(limit - 3):]
+
+
+def _slash_command_lines(text: str) -> list[str]:
+    return [
+        line.strip()
+        for line in str(text or "").splitlines()
+        if line.strip().startswith("/")
+    ]
 
 
 def _live_buffer_len(reply: str, thinking: str) -> int:

@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import logging
+import os
 from typing import Any
+from collections.abc import Awaitable, Callable
 
 from agent_runtime.config_models import Config
 from agent_runtime.looping.interrupt import InterruptController
@@ -8,7 +11,10 @@ from agent_runtime.tools.message_push import MessagePushTool
 from agent_runtime.events.event_bus import EventBus
 from agent_runtime.events.queue import MessageBus
 from agent_runtime.core.net.http import SharedHttpResources
+from connectors.channels.telegram_token import is_valid_telegram_bot_token, mask_telegram_bot_token
 from storage.sessions.manager import SessionManager
+
+logger = logging.getLogger(__name__)
 
 
 async def start_channels(
@@ -21,6 +27,7 @@ async def start_channels(
     event_bus: EventBus,
     bot_commands: list[tuple[str, str]] | None = None,
     interrupt_controller: InterruptController | None = None,
+    telegram_daily_task_runner: Callable[[str, str], Awaitable[None]] | None = None,
 ) -> tuple[Any, Any, Any, Any]:
     from connectors.channels.ipc_server import IPCServerChannel
 
@@ -29,10 +36,21 @@ async def start_channels(
     print(f"Agent 已启动  |  CLI 连接地址: {config.channels.socket}")
 
     tg_channel = None
-    if config.channels.telegram and config.channels.telegram.token:
+    if config.channels.telegram and is_valid_telegram_bot_token(config.channels.telegram.token):
         from connectors.channels.telegram_channel import TelegramChannel
 
         tg = config.channels.telegram
+        logger.info(
+            "[telegram] config enabled channel_name=%s allow_from=%s token_configured=%s "
+            "env_TELEGRAM_BOT_TOKEN_set=%s live_edit=%s stream_response=%s show_thinking=%s",
+            tg.channel_name,
+            tg.allow_from or "ALL",
+            bool(tg.token),
+            bool(os.getenv("TELEGRAM_BOT_TOKEN")),
+            tg.live_edit,
+            tg.stream_response,
+            tg.show_thinking,
+        )
         tg_channel = TelegramChannel(
             token=tg.token,
             bus=bus,
@@ -45,6 +63,7 @@ async def start_channels(
             live_edit=tg.live_edit,
             stream_response=tg.stream_response,
             show_thinking=tg.show_thinking,
+            daily_task_runner=telegram_daily_task_runner,
         )
         await tg_channel.start()
         stream_text = tg_channel.send_stream if tg.stream_response else None
@@ -56,6 +75,20 @@ async def start_channels(
             image=tg_channel.send_image,
         )
         print("Telegram Bot 已启动")
+    else:
+        token = config.channels.telegram.token if config.channels.telegram else ""
+        if token:
+            logger.warning(
+                "[telegram] invalid or missing bot token; Telegram Bot channel disabled. "
+                "Please set TELEGRAM_BOT_TOKEN or configure [channels.telegram].token. "
+                "token=%s",
+                mask_telegram_bot_token(token),
+            )
+        else:
+            logger.warning(
+                "[telegram] invalid or missing bot token; Telegram Bot channel disabled. "
+                "Please set TELEGRAM_BOT_TOKEN or configure [channels.telegram].token."
+            )
 
     qq_channel = None
     if config.channels.qq and config.channels.qq.bot_uin:

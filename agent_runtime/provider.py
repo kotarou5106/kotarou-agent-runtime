@@ -19,6 +19,8 @@ from pathlib import Path
 from typing import Any, Awaitable, Callable, cast
 from openai import AsyncOpenAI
 
+from agent_runtime.network_proxy import log_proxy_env
+
 _THINK_RE = re.compile(r"<think>(.*?)</think>", re.DOTALL)
 
 logger = logging.getLogger(__name__)
@@ -209,6 +211,7 @@ class LLMProvider:
         payload_snapshot_enabled: bool | None = None,
     ) -> None:
         normalized_base_url = _normalize_openai_base_url(base_url)
+        log_proxy_env("llm_provider", once=True)
         self._client = AsyncOpenAI(api_key=api_key, base_url=normalized_base_url)
         self._base_url = normalized_base_url or ""
         self._provider_name = provider_name

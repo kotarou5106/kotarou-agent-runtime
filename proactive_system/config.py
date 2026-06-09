@@ -1,6 +1,91 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+
+
+@dataclass
+class TelegramJobMonitorProactiveConfig:
+    enabled: bool = False
+    schedule: str = "06:00"
+    timezone: str = "Asia/Shanghai"
+    target_chat_id: str = ""
+    read_limit: int = 50
+    debug: bool = False
+
+
+@dataclass
+class TelegramTargetConfig:
+    chat_id: str
+    chat_title: str = ""
+    topic_id: int | None = None
+    expected_topic_title: str | None = None
+
+
+@dataclass
+class TelegramDailySummaryProactiveConfig:
+    enabled: bool = False
+    time: str = "06:00"
+    timezone: str = "Asia/Shanghai"
+    lookback_hours: int = 24
+    send_to: str = "me"
+    target_chat_id: str = ""
+    max_messages_per_target: int = 500
+    include_original_links: bool = True
+    summary_targets: list[TelegramTargetConfig] = field(default_factory=list)
+
+
+@dataclass
+class TelegramMorningGreetingProactiveConfig:
+    enabled: bool = False
+    time: str = "06:05"
+    timezone: str = "Asia/Shanghai"
+    send_to: str = "me"
+    target_chat_id: str = ""
+    avoid_recent_days: int = 14
+    style_pool: list[str] = field(
+        default_factory=lambda: [
+            "Foucault",
+            "Derrida",
+            "Deleuze",
+            "Barthes",
+            "Blanchot",
+            "Kafka",
+            "Borges",
+            "Calvino",
+            "Beckett",
+        ]
+    )
+
+
+@dataclass
+class TelegramAudioCollectorProactiveConfig:
+    enabled: bool = False
+    time: str = "06:10"
+    timezone: str = "Asia/Shanghai"
+    lookback_hours: int = 24
+    send_to: str = "me"
+    target_chat_id: str = ""
+    download_audio: bool = True
+    audio_download_dir: str = "data/telegram_audio_collector"
+    include_original_links: bool = True
+    max_messages_per_target: int = 500
+    audio_targets: list[TelegramTargetConfig] = field(default_factory=list)
+    keywords: list[str] = field(
+        default_factory=lambda: ["妈妈", "儿子", "继母", "母子", "小妈", "母亲", "妈咪", "熟母"]
+    )
+    exclude_keywords: list[str] = field(
+        default_factory=lambda: [
+            "未成年",
+            "幼",
+            "小学生",
+            "初中",
+            "高中",
+            "偷拍",
+            "强迫",
+            "迷奸",
+            "未同意",
+        ]
+    )
 
 
 @dataclass
@@ -103,3 +188,15 @@ class ProactiveConfig:
     drift_enabled: bool = False
     drift_max_steps: int = 20
     drift_min_interval_hours: int = 3
+    telegram_job_monitor: TelegramJobMonitorProactiveConfig = field(
+        default_factory=TelegramJobMonitorProactiveConfig
+    )
+    telegram_daily_summary: TelegramDailySummaryProactiveConfig = field(
+        default_factory=TelegramDailySummaryProactiveConfig
+    )
+    telegram_morning_greeting: TelegramMorningGreetingProactiveConfig = field(
+        default_factory=TelegramMorningGreetingProactiveConfig
+    )
+    telegram_audio_collector: TelegramAudioCollectorProactiveConfig = field(
+        default_factory=TelegramAudioCollectorProactiveConfig
+    )

@@ -390,7 +390,7 @@ async def test_start_channels_wires_telegram_and_qq(monkeypatch, tmp_path):
         api_key="k",
         system_prompt="s",
         channels=ChannelsConfig(
-            telegram=TelegramChannelConfig(token="tg-token", allow_from=["1"]),
+            telegram=TelegramChannelConfig(token="123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZabc", allow_from=["1"]),
             qq=QQChannelConfig(
                 bot_uin="10001",
                 allow_from=["2"],

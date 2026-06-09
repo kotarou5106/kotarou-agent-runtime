@@ -37,6 +37,9 @@ scikit-learn>=1.8.0
 scipy>=1.17.0
 SQLAlchemy>=2.0.0
 starlette>=0.52.0
+python-dotenv>=1.0.0
+PySocks>=1.7.1
+telethon>=1.38.0
 telegramify-markdown
 textual>=8.0.0
 toml>=0.10.0

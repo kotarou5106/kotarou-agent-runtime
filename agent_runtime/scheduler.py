@@ -279,6 +279,17 @@ class ScheduledJob:
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
 
 
+@dataclass
+class RecurringCallbackJob:
+    name: str
+    fire_at: datetime
+    callback: Callable[[], Any]
+    timezone: str = "UTC"
+    cron_expr: str | None = None
+    enabled: bool = True
+    run_count: int = 0
+
+
 # ── JobStore ─────────────────────────────────────────────────────
 
 
@@ -354,7 +365,9 @@ class SchedulerService:
         self.tracker = tracker or LatencyTracker()
         self._now = _now_fn or (lambda: datetime.now(timezone.utc))
         self._jobs: dict[str, ScheduledJob] = {}
+        self._callback_jobs: dict[str, RecurringCallbackJob] = {}
         self._in_flight: set[str] = set()
+        self._callback_in_flight: set[str] = set()
         self._running = False
 
     # ── Public API ───────────────────────────────────────────────
@@ -399,6 +412,30 @@ class SchedulerService:
     def list_jobs(self) -> list[ScheduledJob]:
         return list(self._jobs.values())
 
+    def register_recurring_callback(
+        self,
+        *,
+        name: str,
+        cron_expr: str,
+        timezone: str,
+        callback: Callable[[], Any],
+    ) -> None:
+        fire_at = next_cron_fire(cron_expr, timezone, self._now())
+        self._callback_jobs[name] = RecurringCallbackJob(
+            name=name,
+            fire_at=fire_at,
+            callback=callback,
+            timezone=timezone,
+            cron_expr=cron_expr,
+        )
+        logger.info(
+            "[scheduler] recurring callback registered name=%s cron=%s timezone=%s fire_at=%s",
+            name,
+            cron_expr,
+            timezone,
+            fire_at.isoformat(),
+        )
+
     def load_and_recover(self) -> None:
         """启动时加载持久化 jobs，处理 misfire。"""
         now = self._now()
@@ -438,6 +475,16 @@ class SchedulerService:
 
     async def _tick(self) -> None:
         now = self._now()
+        for callback_job in list(self._callback_jobs.values()):
+            if (
+                not callback_job.enabled
+                or callback_job.name in self._callback_in_flight
+                or callback_job.fire_at > now
+            ):
+                continue
+            self._callback_in_flight.add(callback_job.name)
+            asyncio.create_task(self._execute_callback_and_reschedule(callback_job))
+
         for job in list(self._jobs.values()):
             if not job.enabled or job.id in self._in_flight:
                 continue
@@ -449,6 +496,28 @@ class SchedulerService:
                 )
                 self._in_flight.add(job.id)
                 asyncio.create_task(self._execute_and_reschedule(job))
+
+    async def _execute_callback_and_reschedule(
+        self,
+        job: RecurringCallbackJob,
+    ) -> None:
+        try:
+            result = job.callback()
+            if asyncio.iscoroutine(result):
+                await result
+            job.run_count += 1
+        except Exception as e:
+            logger.error(
+                "[scheduler] recurring callback failed name=%s err=%s",
+                job.name,
+                e,
+                exc_info=True,
+            )
+        finally:
+            self._callback_in_flight.discard(job.name)
+            if job.cron_expr:
+                after = max(self._now(), job.fire_at) + timedelta(microseconds=1)
+                job.fire_at = next_cron_fire(job.cron_expr, job.timezone, after)
 
     async def _execute_and_reschedule(self, job: ScheduledJob) -> None:
         try:

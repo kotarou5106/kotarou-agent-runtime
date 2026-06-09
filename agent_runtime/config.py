@@ -29,6 +29,7 @@ from agent_runtime.config_models import (
     TelegramChannelConfig,
     WiringConfig,
 )
+from agent_runtime.env_loader import load_dotenv_for_config
 from proactive_system.config import ProactiveConfig
 from proactive_system.config_loader import ProactiveConfigError, load_proactive_config
 
@@ -73,6 +74,7 @@ def _validated_timezone(tz_name: str, *, enabled: bool) -> str:
 
 
 def load_config(path: str | Path = "config.toml") -> Config:
+    load_dotenv_for_config(path)
     data = _load_config_data(path)
 
     llm = _as_dict(data.get("llm"))
@@ -283,13 +285,31 @@ def _load_orchestration_config(data: dict) -> OrchestrationConfig:
 
 def _load_proactive_config(data: dict) -> ProactiveConfig:
     proactive = ProactiveConfig()
-    if p := data.get("proactive"):
+    p = dict(_as_dict(data.get("proactive")))
+    for root_key in (
+        "telegram_daily_summary",
+        "morning_greeting",
+        "telegram_audio_collector",
+    ):
+        if root_key in data:
+            p[root_key] = data[root_key]
+    if p:
         try:
-            proactive = load_proactive_config(p)
+            proactive = load_proactive_config(_resolve_config_values(p))
         except ProactiveConfigError as e:
             print(f"❌ Proactive 配置错误: {e}", file=sys.stderr)
             sys.exit(1)
     return proactive
+
+
+def _resolve_config_values(value):
+    if isinstance(value, dict):
+        return {k: _resolve_config_values(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_resolve_config_values(v) for v in value]
+    if isinstance(value, str):
+        return _resolve(value)
+    return value
 
 
 def _load_memory_config(data: dict) -> MemoryConfig:

@@ -48,6 +48,9 @@ plugins/**/.data/
 *.sqlite3
 .env
 .env.*
+!.env.example
+*.session
+*.session-journal
 /.pytest_artifacts/
 /rss/
 

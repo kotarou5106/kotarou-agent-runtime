@@ -134,7 +134,7 @@ profile = "daily"
 channel = "telegram"
 # 你的 Telegram user id（向 bot 发一条消息后从日志里可以拿到）。
 # 官方 QQBot 私聊可填：channel = "qqbot"，chat_id = "c2c:USER_OPENID"
-chat_id = ""
+chat_id = "YOUR_TELEGRAM_CHAT_ID"
 
 [proactive.agent]
 max_steps = 35
@@ -148,6 +148,68 @@ delivery_cooldown_hours = 1
 enabled = false
 max_steps = 20
 min_interval_hours = 3
+
+[proactive.telegram_job_monitor]
+enabled = false
+schedule = "06:00"
+timezone = "Asia/Shanghai"
+target_chat_id = "${TELEGRAM_TARGET_CHAT_ID}"
+read_limit = 50
+debug = false
+
+[telegram_daily_summary]
+enabled = false
+time = "06:00"
+timezone = "Asia/Shanghai"
+lookback_hours = 24
+send_to = "me"
+target_chat_id = "YOUR_TELEGRAM_CHAT_ID"
+max_messages_per_target = 500
+include_original_links = true
+summary_targets = [
+  { chat_title = "Web3万事屋（招聘&求职&资源分享）", chat_id = -1002535833398, topic_id = 6631, expected_topic_title = "吃瓜闲聊-禁发招聘" },
+]
+summary_targets = [
+  { chat_title = "Web3万事屋（招聘&求职&资源分享）", chat_id = -1002535833398, topic_id = 6631, expected_topic_title = "吃瓜闲聊-禁发招聘" },
+]
+
+[morning_greeting]
+enabled = false
+time = "06:05"
+timezone = "Asia/Shanghai"
+send_to = "me"
+target_chat_id = "YOUR_TELEGRAM_CHAT_ID"
+avoid_recent_days = 14
+style_pool = [
+  "Foucault",
+  "Derrida",
+  "Deleuze",
+  "Barthes",
+  "Blanchot",
+  "Kafka",
+  "Borges",
+  "Calvino",
+  "Beckett",
+]
+
+[telegram_audio_collector]
+enabled = false
+time = "06:10"
+timezone = "Asia/Shanghai"
+lookback_hours = 24
+send_to = "me"
+target_chat_id = "YOUR_TELEGRAM_CHAT_ID"
+download_audio = true
+audio_download_dir = "data/telegram_audio_collector"
+include_original_links = true
+max_messages_per_target = 500
+audio_targets = [
+  { chat_title = "群聊1", chat_id = "${TELEGRAM_AUDIO_GROUP_1_ID}", topic_id = 13017 },
+  { chat_title = "群聊2", chat_id = "${TELEGRAM_AUDIO_GROUP_2_ID}", topic_id = 265 },
+  { chat_title = "群聊3", chat_id = "${TELEGRAM_AUDIO_GROUP_3_ID}", topic_id = 389 },
+]
+keywords = ["妈妈", "儿子", "继母", "母子", "小妈", "母亲", "妈咪", "熟母"]
+exclude_keywords = ["未成年", "幼", "小学生", "初中", "高中", "偷拍", "强迫", "迷奸", "未同意"]
 
 # =============================================================================
 # 其他集成（可选）

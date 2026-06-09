@@ -6,7 +6,14 @@ import copy
 import sys
 from typing import Any, cast
 
-from proactive_system.config import ProactiveConfig
+from proactive_system.config import (
+    ProactiveConfig,
+    TelegramAudioCollectorProactiveConfig,
+    TelegramDailySummaryProactiveConfig,
+    TelegramJobMonitorProactiveConfig,
+    TelegramMorningGreetingProactiveConfig,
+    TelegramTargetConfig,
+)
 from proactive_system.presets import ALLOWED_OVERRIDE_KEYS, PRESETS, STRATEGY_PARAMS
 
 
@@ -126,6 +133,11 @@ def _check_forbidden_keys(p: dict[str, Any]) -> None:
         "feed_poller_interval_seconds",
         # v2 Agent Tick（独立子系统）
         "agent_tick",
+        "telegram_job_monitor",
+        "telegram_daily_summary",
+        "telegram_morning_greeting",
+        "telegram_audio_collector",
+        "morning_greeting",
     }
 
     forbidden = set(p.keys()) - allowed_root_keys
@@ -226,6 +238,96 @@ def _validate_drift_keys(drift: dict[str, Any]) -> None:
         )
 
 
+def _validate_telegram_job_monitor_keys(config: dict[str, Any]) -> None:
+    allowed = {
+        "enabled",
+        "schedule",
+        "timezone",
+        "target_chat_id",
+        "read_limit",
+        "debug",
+    }
+    forbidden = set(config.keys()) - allowed
+    if forbidden:
+        raise ProactiveConfigError(
+            f"proactive.telegram_job_monitor 出现非法键: {', '.join(sorted(forbidden))}。"
+            f"允许键: {', '.join(sorted(allowed))}"
+        )
+
+
+def _validate_telegram_daily_summary_keys(config: dict[str, Any]) -> None:
+    allowed = {
+        "enabled",
+        "time",
+        "schedule",
+        "timezone",
+        "summary_targets",
+        "target_groups",
+        "lookback_hours",
+        "window_hours",
+        "max_messages_per_target",
+        "read_limit",
+        "include_original_links",
+        "send_to",
+        "target_chat_id",
+        "send_channel",
+        "send_chat_id",
+    }
+    forbidden = set(config.keys()) - allowed
+    if forbidden:
+        raise ProactiveConfigError(
+            f"proactive.telegram_daily_summary 出现非法键: {', '.join(sorted(forbidden))}。"
+            f"允许键: {', '.join(sorted(allowed))}"
+        )
+
+
+def _validate_telegram_morning_greeting_keys(config: dict[str, Any]) -> None:
+    allowed = {
+        "enabled",
+        "time",
+        "schedule",
+        "timezone",
+        "send_to",
+        "target_chat_id",
+        "avoid_recent_days",
+        "style_pool",
+        "send_channel",
+        "send_chat_id",
+    }
+    forbidden = set(config.keys()) - allowed
+    if forbidden:
+        raise ProactiveConfigError(
+            f"proactive.telegram_morning_greeting 出现非法键: {', '.join(sorted(forbidden))}。"
+            f"允许键: {', '.join(sorted(allowed))}"
+        )
+
+
+def _validate_telegram_audio_collector_keys(config: dict[str, Any]) -> None:
+    allowed = {
+        "enabled",
+        "time",
+        "schedule",
+        "timezone",
+        "lookback_hours",
+        "send_to",
+        "target_chat_id",
+        "download_audio",
+        "audio_download_dir",
+        "include_original_links",
+        "max_messages_per_target",
+        "read_limit",
+        "audio_targets",
+        "keywords",
+        "exclude_keywords",
+    }
+    forbidden = set(config.keys()) - allowed
+    if forbidden:
+        raise ProactiveConfigError(
+            f"telegram_audio_collector 出现非法键: {', '.join(sorted(forbidden))}。"
+            f"允许键: {', '.join(sorted(allowed))}"
+        )
+
+
 def _pick(primary: dict[str, Any], primary_key: str, legacy: dict[str, Any], legacy_key: str):
     if primary_key in primary:
         return primary[primary_key]
@@ -242,6 +344,63 @@ def _as_float(value: Any, field_name: str) -> float:
     if value is None:
         raise ProactiveConfigError(f"{field_name} 不能为空")
     return float(value)
+
+
+def _config_text(value: Any) -> str:
+    text = str(value or "").strip()
+    if text.startswith("${") and text.endswith("}"):
+        return ""
+    return text
+
+
+def _load_telegram_targets(raw_groups: Any, field_name: str) -> list[TelegramTargetConfig]:
+    if raw_groups is None:
+        return []
+    if not isinstance(raw_groups, list):
+        raise ProactiveConfigError(f"{field_name} 必须是列表")
+    targets: list[TelegramTargetConfig] = []
+    for index, item in enumerate(raw_groups):
+        if isinstance(item, str):
+            chat_id = _config_text(item)
+            chat_title = ""
+            topic_id = None
+        elif isinstance(item, dict):
+            allowed = {"chat_id", "chat_title", "name", "topic_id", "message_thread_id", "expected_topic_title"}
+            forbidden = set(item.keys()) - allowed
+            if forbidden:
+                raise ProactiveConfigError(
+                    f"{field_name}[{index}] 出现非法键: {', '.join(sorted(forbidden))}。"
+                    f"允许键: {', '.join(sorted(allowed))}"
+                )
+            chat_id = _config_text(item.get("chat_id", ""))
+            chat_title = str(item.get("chat_title", item.get("name", "")) or "").strip()
+            raw_topic_id = item.get("topic_id", item.get("message_thread_id"))
+            topic_id = None if raw_topic_id in (None, "") else int(raw_topic_id)
+            if topic_id is not None and topic_id <= 0:
+                topic_id = None
+            expected_topic_title = str(item.get("expected_topic_title", "") or "").strip() or None
+        else:
+            raise ProactiveConfigError(
+                f"{field_name}[{index}] 必须是字符串或字典"
+            )
+        if chat_id:
+            targets.append(
+                TelegramTargetConfig(
+                    chat_id=chat_id,
+                    chat_title=chat_title,
+                    topic_id=topic_id,
+                    expected_topic_title=expected_topic_title,
+                )
+            )
+    return targets
+
+
+def _as_str_list(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise ProactiveConfigError("列表配置项必须是数组")
+    return [str(item) for item in value if str(item).strip()]
 
 
 def load_proactive_config(p: dict[str, Any]) -> ProactiveConfig:
@@ -425,4 +584,135 @@ def load_proactive_config(p: dict[str, Any]) -> ProactiveConfig:
             ),
         )
 
+    telegram_job_monitor = p.get("telegram_job_monitor") or {}
+    if not isinstance(telegram_job_monitor, dict):
+        raise ProactiveConfigError("proactive.telegram_job_monitor 必须是字典")
+    _validate_telegram_job_monitor_keys(telegram_job_monitor)
+    target_chat_id = _config_text(telegram_job_monitor.get("target_chat_id", ""))
+    config.telegram_job_monitor = TelegramJobMonitorProactiveConfig(
+        enabled=bool(telegram_job_monitor.get("enabled", False)),
+        schedule=str(telegram_job_monitor.get("schedule", "06:00")),
+        timezone=str(telegram_job_monitor.get("timezone", "Asia/Shanghai")),
+        target_chat_id=target_chat_id,
+        read_limit=max(1, int(telegram_job_monitor.get("read_limit", 50))),
+        debug=bool(telegram_job_monitor.get("debug", False)),
+    )
+
+    telegram_daily_summary = p.get("telegram_daily_summary") or {}
+    if not isinstance(telegram_daily_summary, dict):
+        raise ProactiveConfigError("proactive.telegram_daily_summary 必须是字典")
+    _validate_telegram_daily_summary_keys(telegram_daily_summary)
+    config.telegram_daily_summary = _load_telegram_daily_summary_config(
+        telegram_daily_summary
+    )
+
+    telegram_morning_greeting = p.get("morning_greeting") or p.get("telegram_morning_greeting") or {}
+    if not isinstance(telegram_morning_greeting, dict):
+        raise ProactiveConfigError("morning_greeting 必须是字典")
+    _validate_telegram_morning_greeting_keys(telegram_morning_greeting)
+    config.telegram_morning_greeting = _load_morning_greeting_config(
+        telegram_morning_greeting
+    )
+
+    telegram_audio_collector = p.get("telegram_audio_collector") or {}
+    if not isinstance(telegram_audio_collector, dict):
+        raise ProactiveConfigError("telegram_audio_collector 必须是字典")
+    _validate_telegram_audio_collector_keys(telegram_audio_collector)
+    config.telegram_audio_collector = _load_telegram_audio_collector_config(
+        telegram_audio_collector
+    )
+
     return config
+
+
+def _load_telegram_daily_summary_config(
+    raw: dict[str, Any],
+) -> TelegramDailySummaryProactiveConfig:
+    targets_raw = raw.get("summary_targets", raw.get("target_groups", []))
+    return TelegramDailySummaryProactiveConfig(
+        enabled=bool(raw.get("enabled", False)),
+        time=str(raw.get("time", raw.get("schedule", "06:00"))),
+        timezone=str(raw.get("timezone", "Asia/Shanghai")),
+        lookback_hours=max(1, int(raw.get("lookback_hours", raw.get("window_hours", 24)))),
+        send_to=_config_text(raw.get("send_to", "")) or "me",
+        target_chat_id=_config_text(raw.get("target_chat_id", "")),
+        max_messages_per_target=max(
+            1,
+            int(raw.get("max_messages_per_target", raw.get("read_limit", 500))),
+        ),
+        include_original_links=bool(raw.get("include_original_links", True)),
+        summary_targets=_load_telegram_targets(
+            targets_raw,
+            "telegram_daily_summary.summary_targets",
+        ),
+    )
+
+
+def _load_morning_greeting_config(
+    raw: dict[str, Any],
+) -> TelegramMorningGreetingProactiveConfig:
+    style_pool = _as_str_list(raw.get("style_pool")) or [
+        "Foucault",
+        "Derrida",
+        "Deleuze",
+        "Barthes",
+        "Blanchot",
+        "Kafka",
+        "Borges",
+        "Calvino",
+        "Beckett",
+    ]
+    return TelegramMorningGreetingProactiveConfig(
+        enabled=bool(raw.get("enabled", False)),
+        time=str(raw.get("time", raw.get("schedule", "06:05"))),
+        timezone=str(raw.get("timezone", "Asia/Shanghai")),
+        send_to=_config_text(raw.get("send_to", "")) or "me",
+        target_chat_id=_config_text(raw.get("target_chat_id", "")),
+        avoid_recent_days=max(1, int(raw.get("avoid_recent_days", 14))),
+        style_pool=style_pool,
+    )
+
+
+def _load_telegram_audio_collector_config(
+    raw: dict[str, Any],
+) -> TelegramAudioCollectorProactiveConfig:
+    return TelegramAudioCollectorProactiveConfig(
+        enabled=bool(raw.get("enabled", False)),
+        time=str(raw.get("time", raw.get("schedule", "06:10"))),
+        timezone=str(raw.get("timezone", "Asia/Shanghai")),
+        lookback_hours=max(1, int(raw.get("lookback_hours", 24))),
+        send_to=_config_text(raw.get("send_to", "")) or "me",
+        target_chat_id=_config_text(raw.get("target_chat_id", "")),
+        download_audio=bool(raw.get("download_audio", True)),
+        audio_download_dir=str(raw.get("audio_download_dir", "data/telegram_audio_collector")),
+        include_original_links=bool(raw.get("include_original_links", True)),
+        max_messages_per_target=max(
+            1,
+            int(raw.get("max_messages_per_target", raw.get("read_limit", 500))),
+        ),
+        audio_targets=_load_telegram_targets(
+            raw.get("audio_targets", []),
+            "telegram_audio_collector.audio_targets",
+        ),
+        keywords=_as_str_list(raw.get("keywords")) or [
+            "妈妈",
+            "儿子",
+            "继母",
+            "母子",
+            "小妈",
+            "母亲",
+            "妈咪",
+            "熟母",
+        ],
+        exclude_keywords=_as_str_list(raw.get("exclude_keywords")) or [
+            "未成年",
+            "幼",
+            "小学生",
+            "初中",
+            "高中",
+            "偷拍",
+            "强迫",
+            "迷奸",
+            "未同意",
+        ],
+    )

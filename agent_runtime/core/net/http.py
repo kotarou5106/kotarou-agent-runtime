@@ -7,6 +7,8 @@ from typing import Any, Literal
 
 import httpx
 
+from agent_runtime.network_proxy import log_proxy_env
+
 HttpProfile = Literal["external_default", "feed_fetcher", "local_service"]
 
 
@@ -138,6 +140,7 @@ class SharedHttpResources:
     _closed: bool = field(init=False, default=False)
 
     def __post_init__(self) -> None:
+        log_proxy_env("httpx", once=True)
         external_client = httpx.AsyncClient(
             limits=httpx.Limits(max_connections=20, max_keepalive_connections=10)
         )

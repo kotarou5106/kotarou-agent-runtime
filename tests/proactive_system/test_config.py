@@ -11,6 +11,7 @@ TDD — Phase 2: proactive/config.py v2 新字段
 import pytest
 
 from proactive_system.config import ProactiveConfig
+from proactive_system.config_loader import load_proactive_config
 
 
 # ── v2-only ───────────────────────────────────────────────────────────────
@@ -149,3 +150,81 @@ def test_v1_delivery_dedupe_hours_unchanged():
 
 def test_v1_context_only_daily_max_unchanged():
     assert ProactiveConfig().context_only_daily_max == 1
+
+
+def test_load_telegram_daily_tasks_config():
+    cfg = load_proactive_config(
+        {
+            "profile": "daily",
+            "target": {"channel": "telegram", "chat_id": "12345"},
+            "telegram_daily_summary": {
+                "enabled": True,
+                "time": "06:00",
+                "timezone": "Asia/Shanghai",
+                "summary_targets": [
+                    {"chat_id": "-1001570628112", "chat_title": "study-group", "topic_id": 13017, "expected_topic_title": "吃瓜闲聊-禁发招聘"},
+                    "${EMPTY_GROUP_ID}",
+                ],
+                "lookback_hours": 24,
+                "max_messages_per_target": 500,
+            },
+            "morning_greeting": {
+                "enabled": True,
+                "time": "06:05",
+                "timezone": "Asia/Shanghai",
+                "avoid_recent_days": 14,
+            },
+            "telegram_audio_collector": {
+                "enabled": True,
+                "time": "06:10",
+                "audio_targets": [
+                    {"chat_id": "-1001", "chat_title": "audio", "topic_id": 265}
+                ],
+                "keywords": ["妈妈"],
+                "exclude_keywords": ["未成年"],
+            },
+        }
+    )
+
+    assert cfg.telegram_daily_summary.enabled is True
+    assert cfg.telegram_daily_summary.time == "06:00"
+    assert cfg.telegram_daily_summary.summary_targets[0].chat_id == "-1001570628112"
+    assert cfg.telegram_daily_summary.summary_targets[0].chat_title == "study-group"
+    assert cfg.telegram_daily_summary.summary_targets[0].topic_id == 13017
+    assert cfg.telegram_daily_summary.summary_targets[0].expected_topic_title == "吃瓜闲聊-禁发招聘"
+    assert cfg.telegram_daily_summary.target_chat_id == ""
+    assert len(cfg.telegram_daily_summary.summary_targets) == 1
+    assert cfg.telegram_morning_greeting.enabled is True
+    assert cfg.telegram_morning_greeting.time == "06:05"
+    assert cfg.telegram_audio_collector.enabled is True
+    assert cfg.telegram_audio_collector.audio_targets[0].topic_id == 265
+    assert cfg.telegram_audio_collector.keywords == ["妈妈"]
+
+
+def test_load_telegram_daily_tasks_config_without_expected_topic_title():
+    cfg = load_proactive_config(
+        {
+            "profile": "daily",
+            "target": {"channel": "telegram", "chat_id": "12345"},
+            "telegram_daily_summary": {
+                "enabled": True,
+                "summary_targets": [
+                    {"chat_id": "-1002535833398", "chat_title": "Web3万事屋（招聘&求职&资源分享）", "topic_id": 6631},
+                ],
+            },
+        }
+    )
+
+    assert cfg.telegram_daily_summary.summary_targets[0].expected_topic_title is None
+
+
+def test_load_proactive_target_chat_id_used_as_default_chat_id():
+    cfg = load_proactive_config(
+        {
+            "profile": "daily",
+            "target": {"channel": "telegram", "chat_id": "6842574455"},
+        }
+    )
+
+    assert cfg.default_channel == "telegram"
+    assert cfg.default_chat_id == "6842574455"
