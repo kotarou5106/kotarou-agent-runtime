@@ -57,6 +57,9 @@ _REPLY_LIVE_TAIL = 1100
 _TOOL_PREVIEW_LIMIT = 80
 _LIVE_STREAM_MIN_INTERVAL_S = 2.5
 _LIVE_STREAM_MIN_CHARS = 200
+_POLLING_WATCHDOG_INTERVAL_S = 30.0
+_POLLING_RECONNECT_BACKOFF_INITIAL_S = 2.0
+_POLLING_RECONNECT_BACKOFF_MAX_S = 60.0
 
 TelegramDailyTaskRunner = Callable[[str, str], Awaitable[None]]
 _DAILY_TASK_COMMANDS: dict[str, str] = {
@@ -167,6 +170,10 @@ class TelegramChannel:
             event_bus.on(ToolCallCompleted, self._on_tool_call_completed)
         self.user_map = self._identity_index.mapping
         self._polling_conflict_task: asyncio.Task[None] | None = None
+        self._polling_watchdog_task: asyncio.Task[None] | None = None
+        self._polling_restart_event = asyncio.Event()
+        self._polling_stopping = False
+        self._polling_failures = 0
         self._telegram_outbound_limiter = TelegramOutboundLimiter()
         self._active_streams: dict[str, TelegramStreamMessage] = {}
         self._live_edit_queue = TelegramLiveEditQueue(limiter=self._telegram_outbound_limiter)
@@ -214,6 +221,7 @@ class TelegramChannel:
         await asyncio.gather(*tasks, return_exceptions=True)
 
     async def start(self) -> None:
+        self._polling_stopping = False
         self._rebuild_user_map()
         handler_count = _count_handlers(getattr(self._app, "handlers", None))
         logger.info(
@@ -244,21 +252,18 @@ class TelegramChannel:
             logger.info("[telegram] bot identity unavailable: bot.get_me missing")
         await self._app.start()
         await self._register_bot_commands()
-        updater = self._app.updater
-        if updater is None:
-            raise RuntimeError("Telegram updater 未初始化")
-        await updater.start_polling(
-            allowed_updates=Update.ALL_TYPES,
-            error_callback=self._on_polling_error,
-        )
-        logger.info(
-            "[telegram] polling started running=%s allowed_updates=ALL_TYPES known_users=%d",
-            getattr(updater, "running", None),
-            len(self.user_map),
+        await self._ensure_polling_running(initial=True)
+        self._polling_watchdog_task = asyncio.create_task(
+            self._polling_watchdog_loop(),
+            name="telegram-polling-watchdog",
         )
         logger.info(f"TelegramChannel 已启动  已知用户: {len(self.user_map)}")
 
     async def stop(self) -> None:
+        self._polling_stopping = True
+        if self._polling_watchdog_task and not self._polling_watchdog_task.done():
+            self._polling_watchdog_task.cancel()
+            await asyncio.gather(self._polling_watchdog_task, return_exceptions=True)
         if self._polling_conflict_task and not self._polling_conflict_task.done():
             await self._polling_conflict_task
         if self._live_tasks:
@@ -268,6 +273,7 @@ class TelegramChannel:
             await updater.stop()
         await self._app.stop()
         await self._app.shutdown()
+        self._log_telegram_status("failed", reason="channel stopped")
         logger.info("TelegramChannel 已停止")
 
     # ── 私有方法 ──────────────────────────────────────────────────
@@ -299,6 +305,111 @@ class TelegramChannel:
             ]
         ]
         await self._app.bot.set_my_commands(commands)
+
+    async def _ensure_polling_running(self, *, initial: bool = False) -> bool:
+        updater = self._app.updater
+        if updater is None:
+            raise RuntimeError("Telegram updater 未初始化")
+        if getattr(updater, "running", False):
+            return True
+        try:
+            await updater.start_polling(
+                allowed_updates=Update.ALL_TYPES,
+                error_callback=self._on_polling_error,
+            )
+        except Exception as exc:
+            self._polling_failures += 1
+            self._log_telegram_status(
+                "failed",
+                reason="initial polling start failed" if initial else "polling start failed",
+                exc=exc,
+                level=logging.ERROR,
+            )
+            if initial:
+                return False
+            raise
+        self._polling_failures = 0
+        self._polling_restart_event.clear()
+        logger.info(
+            "[telegram] polling started running=%s allowed_updates=ALL_TYPES known_users=%d",
+            getattr(updater, "running", None),
+            len(self.user_map),
+        )
+        self._log_telegram_status("running")
+        return True
+
+    async def _polling_watchdog_loop(self) -> None:
+        while not self._polling_stopping:
+            try:
+                updater = self._app.updater
+                restart_requested = self._polling_restart_event.is_set()
+                if updater is None:
+                    raise RuntimeError("Telegram updater 未初始化")
+                if restart_requested or not getattr(updater, "running", False):
+                    self._log_telegram_status(
+                        "reconnecting",
+                        reason="polling error" if restart_requested else "polling not running",
+                    )
+                    if getattr(updater, "running", False):
+                        try:
+                            await updater.stop()
+                        except Exception as exc:
+                            logger.error(
+                                "[telegram] polling stop before reconnect failed",
+                                exc_info=(type(exc), exc, exc.__traceback__),
+                            )
+                    try:
+                        await self._ensure_polling_running()
+                    except Exception as exc:
+                        delay = self._polling_reconnect_delay()
+                        self._log_telegram_status(
+                            "failed",
+                            reason=f"reconnect failed; retrying in {delay:.1f}s",
+                            exc=exc,
+                            level=logging.ERROR,
+                        )
+                        await asyncio.sleep(delay)
+                        continue
+                await asyncio.sleep(_POLLING_WATCHDOG_INTERVAL_S)
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                self._polling_failures += 1
+                delay = self._polling_reconnect_delay()
+                self._log_telegram_status(
+                    "failed",
+                    reason=f"watchdog failed; retrying in {delay:.1f}s",
+                    exc=exc,
+                    level=logging.ERROR,
+                )
+                await asyncio.sleep(delay)
+
+    def _polling_reconnect_delay(self) -> float:
+        exponent = max(0, min(self._polling_failures - 1, 5))
+        return min(
+            _POLLING_RECONNECT_BACKOFF_MAX_S,
+            _POLLING_RECONNECT_BACKOFF_INITIAL_S * (2**exponent),
+        )
+
+    def _log_telegram_status(
+        self,
+        status: str,
+        *,
+        reason: str = "",
+        exc: BaseException | None = None,
+        level: int = logging.INFO,
+    ) -> None:
+        suffix = f" reason={reason}" if reason else ""
+        if exc is None:
+            logger.log(level, "[telegram] telegram status: %s%s", status, suffix)
+            return
+        logger.log(
+            level,
+            "[telegram] telegram status: %s%s",
+            status,
+            suffix,
+            exc_info=(type(exc), exc, exc.__traceback__),
+        )
 
     async def _remember_username(self, chat_id: str, username: str | None) -> None:
         if username:
@@ -1088,19 +1199,31 @@ class TelegramChannel:
             )
 
     def _on_polling_error(self, exc: TelegramError) -> None:
-        """处理 Telegram polling 异常，避免 Conflict 场景下持续刷屏。"""
+        """处理 Telegram polling 异常并通知 watchdog 重连。"""
         if isinstance(exc, Conflict):
-            if self._polling_conflict_task is None:
-                logger.error(
-                    "[telegram] 检测到 getUpdates 冲突，已暂停 Telegram 接收。"
-                    "请确保同一 bot token 仅运行一个轮询实例；如果此前设置过 webhook，"
-                    "请执行：curl \"https://api.telegram.org/bot<TOKEN>/deleteWebhook?drop_pending_updates=false\""
-                )
-                self._polling_conflict_task = asyncio.create_task(
-                    self._disable_polling_on_conflict()
-                )
+            logger.error(
+                "[telegram] 检测到 getUpdates 冲突，将进入重连退避。"
+                "请确保同一 bot token 仅运行一个轮询实例；如果此前设置过 webhook，"
+                "请执行：curl \"https://api.telegram.org/bot<TOKEN>/deleteWebhook?drop_pending_updates=false\"",
+                exc_info=(type(exc), exc, exc.__traceback__),
+            )
+            self._log_telegram_status(
+                "reconnecting",
+                reason="getUpdates conflict",
+                level=logging.WARNING,
+            )
+            self._polling_restart_event.set()
             return
-        logger.warning("[telegram] polling 异常，框架将自动重试: %s", exc)
+        logger.error(
+            "[telegram] polling exception; watchdog will reconnect",
+            exc_info=(type(exc), exc, exc.__traceback__),
+        )
+        self._log_telegram_status(
+            "reconnecting",
+            reason=exc.__class__.__name__,
+            level=logging.WARNING,
+        )
+        self._polling_restart_event.set()
 
     async def _on_error(
         self,
@@ -1120,11 +1243,10 @@ class TelegramChannel:
             return
         try:
             await updater.stop()
-            logger.warning(
-                "[telegram] polling 已停止；当前进程不再接收 Telegram 消息。"
-            )
+            self._polling_restart_event.set()
+            self._log_telegram_status("reconnecting", reason="polling stopped")
         except Exception as e:
-            logger.warning("[telegram] 停止 polling 失败: %s", e)
+            logger.warning("[telegram] 停止 polling 失败: %s", e, exc_info=True)
 
 
 def _preview_text(text: object, limit: int = 80) -> str:
