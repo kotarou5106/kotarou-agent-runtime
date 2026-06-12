@@ -29,6 +29,10 @@ from proactive_system.memory_optimizer import MemoryOptimizerBusy
 from proactive_system.state import ProactiveStateStore
 from agent_runtime.core.common.timekit import utcnow
 from agent_runtime.core.memory.engine import MemoryAdminApi
+from dashboard.backend.daily_workspace import (
+    DailyWorkspaceService,
+    parse_workspace_date,
+)
 from knowledge_system.indexing.store import KnowledgeStore
 from storage.sessions.store import SessionStore
 
@@ -922,6 +926,22 @@ def create_dashboard_app(
         html = re.sub(r'(/assets/app\.js)(\?[^"]*)?', rf'\1?v={app_v}', html)
         return Response(content=html, media_type="text/html")
 
+    @app.get("/daily")
+    def dashboard_daily_page() -> Response:
+        return dashboard_index()
+
+    @app.get("/daily/showcase")
+    def dashboard_daily_showcase_page() -> Response:
+        return dashboard_index()
+
+    @app.get("/workspace")
+    def dashboard_workspace_page() -> Response:
+        return dashboard_index()
+
+    @app.get("/workspace/showcase")
+    def dashboard_workspace_showcase_page() -> Response:
+        return dashboard_index()
+
     @app.get("/knowledge")
     def dashboard_knowledge_page() -> Response:
         html = (static_dir / "knowledge.html").read_text(encoding="utf-8")
@@ -1000,6 +1020,20 @@ def create_dashboard_app(
         if item is None:
             raise HTTPException(status_code=404, detail="trace 不存在")
         return item
+
+    @app.get("/api/dashboard/daily-workspace")
+    def get_daily_workspace(date: str | None = None) -> dict[str, Any]:
+        try:
+            target_date = parse_workspace_date(date)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        service = DailyWorkspaceService(
+            workspace=workspace,
+            sessions=store,
+            proactive=get_proactive_reader(),
+            memory=memory_admin,
+        )
+        return service.snapshot(target_date)
 
     @app.get("/api/dashboard/knowledge/documents")
     def list_knowledge_documents(status: str = "active") -> dict[str, Any]:

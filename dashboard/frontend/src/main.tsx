@@ -18,6 +18,7 @@ import { attachJsonViewers, installDashboardGlobals, jvPlaceholder, loadPluginAs
 import { PluginDetail } from "./PluginDetail";
 import type {
   DashboardColumn,
+  DailyWorkspaceSnapshot,
   KnowledgeChunkRow,
   KnowledgeDocumentRow,
   KnowledgeRetrievalEventRow,
@@ -111,8 +112,10 @@ function makeDispatch(
 }
 
 function App(): React.ReactElement {
-  const [viewMode, setViewMode] = useState<ViewMode>("sessions");
-  const [navOpen, setNavOpen] = useState<NavOpen>({ sessions: false, proactive: false });
+  const isDailyShowcase = window.location.pathname === "/daily/showcase" || window.location.pathname === "/workspace/showcase";
+  const initialView: ViewMode = window.location.pathname === "/daily" || window.location.pathname === "/workspace" || isDailyShowcase ? "daily" : "sessions";
+  const [viewMode, setViewMode] = useState<ViewMode>(initialView);
+  const [navOpen, setNavOpen] = useState<NavOpen>({ sessions: false, proactive: false, daily: true });
   const [plugins, setPlugins] = useState<PluginConfig[]>([]);
   const [pluginState, setPluginState] = useState<Record<string, PluginState>>({});
   const [sessions, setSessions] = useState<SessionRow[]>([]);
@@ -141,6 +144,8 @@ function App(): React.ReactElement {
   const [knowledgeChunks, setKnowledgeChunks] = useState<KnowledgeChunkRow[]>([]);
   const [knowledgeEvents, setKnowledgeEvents] = useState<KnowledgeRetrievalEventRow[]>([]);
   const [knowledgeVectorBackend, setKnowledgeVectorBackend] = useState("");
+  const [dailySnapshot, setDailySnapshot] = useState<DailyWorkspaceSnapshot | null>(null);
+  const [dailyDate, setDailyDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [activeKnowledgeDocumentId, setActiveKnowledgeDocumentId] = useState<string>("");
   const [activeProactiveKey, setActiveProactiveKey] = useState<string | null>(null);
   const [activeProactiveDetail, setActiveProactiveDetail] = useState<ProactiveTick | null>(null);
@@ -233,6 +238,14 @@ function App(): React.ReactElement {
     setKnowledgeEvents(eventsPayload.items ?? []);
   }, [activeKnowledgeDocumentId]);
 
+  const loadDailyWorkspace = useCallback(async (dateValue = dailyDate) => {
+    const params = new URLSearchParams();
+    if (dateValue) params.set("date", dateValue);
+    const snapshot = await api<DailyWorkspaceSnapshot>(`/api/dashboard/daily-workspace?${params.toString()}`);
+    setDailySnapshot(snapshot);
+    setDailyDate(snapshot.date);
+  }, [dailyDate]);
+
   const loadPluginPanel = useCallback(async (pluginId: string) => {
     const plugin = plugins.find((item) => item.id === pluginId);
     const state = pluginState[pluginId];
@@ -261,12 +274,14 @@ function App(): React.ReactElement {
       await loadProactivePanel();
     } else if (viewMode === "knowledge") {
       await loadKnowledgePanel();
+    } else if (viewMode === "daily") {
+      await loadDailyWorkspace();
     } else if (viewMode.startsWith("plugin:")) {
       await loadPluginPanel(viewMode.slice(7));
     } else {
       await loadMessages();
     }
-  }, [loadMessages, loadPluginPanel, loadProactiveOverview, loadProactivePanel, loadSessions, viewMode]);
+  }, [loadDailyWorkspace, loadKnowledgePanel, loadMessages, loadPluginPanel, loadProactiveOverview, loadProactivePanel, loadSessions, viewMode]);
 
   useEffect(() => {
     const refresh = (): void => {
@@ -303,8 +318,9 @@ function App(): React.ReactElement {
       await loadSessions();
       await loadMessages();
       await loadProactiveOverview();
+      if (initialView === "daily") await loadDailyWorkspace();
     });
-  }, [loadMessages, loadProactiveOverview, loadSessions, run]);
+  }, [initialView, loadDailyWorkspace, loadMessages, loadProactiveOverview, loadSessions, run]);
 
   useEffect(() => {
     for (const plugin of plugins) {
@@ -336,6 +352,7 @@ function App(): React.ReactElement {
         await loadProactiveOverview();
         await loadProactivePanel();
       } else if (next === "knowledge") await loadKnowledgePanel();
+      else if (next === "daily") await loadDailyWorkspace();
       else await loadPluginPanel(next.slice(7));
     });
   };
@@ -373,15 +390,21 @@ function App(): React.ReactElement {
     if (viewMode === "knowledge") void run(loadKnowledgePanel);
   }, [loadKnowledgePanel, run, viewMode]);
 
+  useEffect(() => {
+    if (viewMode === "daily") void run(() => loadDailyWorkspace(dailyDate));
+  }, [dailyDate, loadDailyWorkspace, run, viewMode]);
+
   const currentPageCount = currentPluginState
     ? pageCount(currentPluginState.total, currentPluginState.pageSize)
+    : viewMode === "daily"
+      ? 1
     : viewMode === "knowledge"
       ? 1
     : viewMode === "proactive"
       ? pageCount(proactiveTotal, proactivePageSize)
       : pageCount(totalMessages, messagePageSize);
 
-  const currentPage = currentPluginState?.page ?? (viewMode === "knowledge" ? 1 : viewMode === "proactive" ? proactivePage : messagePage);
+  const currentPage = currentPluginState?.page ?? (viewMode === "daily" || viewMode === "knowledge" ? 1 : viewMode === "proactive" ? proactivePage : messagePage);
 
   const changePage = (delta: number): void => {
     if (currentPage + delta < 1 || currentPage + delta > currentPageCount) return;
@@ -422,6 +445,15 @@ function App(): React.ReactElement {
       )
     : undefined;
 
+  if (isDailyShowcase) {
+    return (
+      <>
+        <DailyShowcasePage snapshot={dailySnapshot} selectedDate={dailyDate} onSelectDate={setDailyDate} />
+        {error && <div className="modal-backdrop" onClick={() => setError(null)}><div className="modal"><div className="modal-title">请求失败</div><p>{error}</p><div className="modal-actions"><button className="primary" type="button" onClick={() => setError(null)}>关闭</button></div></div></div>}
+      </>
+    );
+  }
+
   return (
     <div className="shell">
       <header className="topbar">
@@ -447,6 +479,7 @@ function App(): React.ReactElement {
           currentPluginState={currentPluginState}
           onSetPluginState={currentPlugin ? (updater) => setPluginState((c) => ({ ...c, [currentPlugin.id]: updater(c[currentPlugin.id]) })) : undefined}
           knowledgeVectorBackend={knowledgeVectorBackend}
+          dailySnapshot={dailySnapshot}
         />
         <div className="topbar-view">
           <div className="view-chip"><span>{viewLabel(viewMode, currentPlugin)}</span></div>
@@ -462,7 +495,7 @@ function App(): React.ReactElement {
         </div>
       </header>
 
-      <main className="workspace">
+      <main className={`workspace ${viewMode === "daily" ? "daily-mode" : ""}`}>
         <aside className="sessions-pane">
           <div className="pane-head">
             <div className="pane-kicker">Explorer</div>
@@ -508,6 +541,24 @@ function App(): React.ReactElement {
                       <span className="nav-item-count">{session.message_count}</span>
                     </div>
                     <div className="nav-item-desc">{relativeTime(session.updated_at)}</div>
+                  </button>
+                ))}
+              </div>
+            </NavGroup>
+            <NavGroup label="Daily Workspace" count={dailySnapshot?.missions.length ?? 0} active={viewMode === "daily"} open={!!navOpen.daily} onToggle={() => toggleNav("daily")}>
+              <button className={`all-messages-row ${viewMode === "daily" ? "active" : ""}`} type="button" onClick={() => selectView("daily")}>
+                <span>今日工作台</span><strong>{dailySnapshot?.status ?? "idle"}</strong>
+              </button>
+              <div className="proactive-quick-list">
+                {(dailySnapshot?.archive_dates ?? []).map((item) => (
+                  <button key={item.date} className={`proactive-quick-item ${dailyDate === item.date ? "active" : ""}`} type="button" onClick={() => {
+                    setDailyDate(item.date);
+                    selectView("daily");
+                  }}>
+                    <div className="nav-item-row">
+                      <span className="nav-item-name">{item.label}</span>
+                      <span className="nav-item-count">{item.has_real_data ? item.count : "sample"}</span>
+                    </div>
                   </button>
                 ))}
               </div>
@@ -624,6 +675,8 @@ function App(): React.ReactElement {
               activeDocumentId={activeKnowledgeDocumentId}
               onSelectDocument={(id) => setActiveKnowledgeDocumentId(id)}
             />
+          ) : viewMode === "daily" ? (
+            <DailyWorkspacePanel snapshot={dailySnapshot} selectedDate={dailyDate} onSelectDate={setDailyDate} />
           ) : <>
             <TableHead viewMode={viewMode} plugin={currentPlugin} pluginState={currentPluginState} messageSortBy={messageSortBy} messageSortOrder={messageSortOrder} proactiveSortBy={proactiveSortBy} proactiveSortOrder={proactiveSortOrder} onSort={sort} onPluginSort={currentDispatch ? (key) => currentDispatch.setSort(key) : undefined} />
             <div className="table-body">
@@ -669,14 +722,14 @@ function App(): React.ReactElement {
               />
             </div>
           </>}
-          <footer className="table-foot">
+          {viewMode !== "daily" && <footer className="table-foot">
             <div>{tableMeta(viewMode, totalMessages, proactiveTotal, currentPlugin, currentPluginState, proactiveSessionFilter)}</div>
             <div className="pager">
               <button className="ghost" type="button" disabled={currentPage <= 1} onClick={() => changePage(-1)}>‹</button>
               <span>{currentPage} / {currentPageCount}</span>
               <button className="ghost" type="button" disabled={currentPage >= currentPageCount} onClick={() => changePage(1)}>›</button>
             </div>
-          </footer>
+          </footer>}
         </section>
 
         <aside className="detail-pane">
@@ -779,6 +832,7 @@ function TopbarFilters(props: {
   currentPluginState: PluginState | null;
   onSetPluginState?: (updater: (s: PluginState) => PluginState) => void;
   knowledgeVectorBackend: string;
+  dailySnapshot: DailyWorkspaceSnapshot | null;
 }): React.ReactElement {
   return (
     <div className="topbar-filters">
@@ -798,6 +852,11 @@ function TopbarFilters(props: {
         ) : props.viewMode === "knowledge" ? (
           <div className="filter-row">
             <div className="active-session-chip"><span>vector</span><code>{props.knowledgeVectorBackend || "unknown"}</code></div>
+          </div>
+        ) : props.viewMode === "daily" ? (
+          <div className="filter-row">
+            <div className="active-session-chip"><span>workspace</span><code>{props.dailySnapshot?.date ?? "loading"}</code></div>
+            {props.dailySnapshot?.is_sample && <div className="active-session-chip"><span>sample</span><code>{props.dailySnapshot.sample_fallback_fields.join(", ")}</code></div>}
           </div>
         ) : (
           <div className="filter-row">
@@ -997,6 +1056,323 @@ function DetailPane(props: {
   return <EmptyDetail text="点开消息、session 或 memory 后，这里会显示完整内容、字段和 JSON 信息。" />;
 }
 
+function DailyShowcasePage(props: {
+  snapshot: DailyWorkspaceSnapshot | null;
+  selectedDate: string;
+  onSelectDate(date: string): void;
+}): React.ReactElement {
+  const snapshot = props.snapshot;
+  if (!snapshot) {
+    return (
+      <main className="daily-showcase">
+        <div className="showcase-loading glass-card">Loading daily workspace...</div>
+      </main>
+    );
+  }
+  const missions = snapshot.missions.filter(isRealShowcaseItem).map(cleanShowcaseMission);
+  const ephemera = snapshot.ephemera.filter(isRealShowcaseItem);
+  const memoryItems = snapshot.memory_items.filter(isRealShowcaseItem);
+  const toolCalls = snapshot.tool_calls.filter(isRealShowcaseItem);
+  const failures = snapshot.failures.filter(isRealShowcaseItem).map(cleanShowcaseMission);
+  const needsApproval = snapshot.needs_approval.filter(isRealShowcaseItem).map(cleanShowcaseMission);
+  const nextActions = snapshot.next_actions.filter(isRealShowcaseItem);
+  const perspective = isShowcaseSampleText(snapshot.perspective) ? "今日暂无可总结的 Agent 活动" : snapshot.perspective;
+  const completed = missions.filter((item) => item.status === "completed").length;
+  const waiting = needsApproval.length;
+  const visibleMissions = missions.slice(0, 3);
+  const hiddenMissionCount = Math.max(0, missions.length - visibleMissions.length);
+  return (
+    <main className="daily-showcase">
+      <div className="showcase-bg-layer" />
+      <section className="showcase-profile glass-card">
+        <div className="showcase-avatar" aria-hidden="true">
+          <span>K</span>
+        </div>
+        <div className="showcase-profile-copy">
+          <div className="daily-kicker">今日工作台</div>
+          <h1>{snapshot.agent_name}</h1>
+          <p>{perspective}</p>
+          <div className="showcase-stats">
+            <span>{snapshot.date}</span>
+            <span className={`daily-status daily-status-${snapshot.status}`}>{snapshot.status}</span>
+            <span>已完成 {completed} 项</span>
+            <span>等待确认 {waiting} 项</span>
+            {snapshot.no_real_data && <span className="sample-badge compact">No real activity yet</span>}
+          </div>
+        </div>
+      </section>
+
+      <section className="showcase-layout">
+        <aside className="showcase-column showcase-left">
+          <DailyCard title="Archive Index">
+            {snapshot.archive_dates.some((item) => item.has_real_data) ? <div className="showcase-archive">
+              {snapshot.archive_dates.map((item) => (
+                <button key={item.date} className={props.selectedDate === item.date ? "active" : ""} type="button" onClick={() => props.onSelectDate(item.date)}>
+                  <span />
+                  <div>
+                    <strong>{item.label}</strong>
+                    <em>{item.count} logs</em>
+                  </div>
+                </button>
+              ))}
+            </div> : <ShowcaseEmpty text="暂无历史活动日期" />}
+          </DailyCard>
+          <DailyCard title="Memory">
+            {memoryItems.length ? <TimelineList items={memoryItems.slice(0, 5).map((item) => ({
+              id: item.id,
+              time: item.time,
+              title: item.title,
+              body: stripShowcaseSamplePrefix(item.summary),
+              meta: item.type,
+            }))} /> : <ShowcaseEmpty text="今日暂无记忆更新" />}
+          </DailyCard>
+        </aside>
+
+        <section className="showcase-column showcase-center">
+          <DailyCard title="Perspective">
+            <div className="perspective-note">
+              <p>{perspective}</p>
+              <span>{snapshot.no_real_data ? "等待今日 Agent 活动生成摘要" : snapshot.status_text}</span>
+            </div>
+          </DailyCard>
+          <DailyCard title="Missions" className="showcase-missions">
+            {visibleMissions.length ? <div className="mission-list">
+              {visibleMissions.map((item) => <MissionItem key={item.id} item={item} />)}
+              {hiddenMissionCount > 0 && <div className="showcase-more">+{hiddenMissionCount} more in today's log</div>}
+            </div> : <ShowcaseEmpty text="今日暂无真实任务记录" />}
+          </DailyCard>
+        </section>
+
+        <aside className="showcase-column showcase-right">
+          <DailyCard title="Ephemera">
+            {ephemera.length ? <TimelineList items={ephemera.slice(0, 7).map((item) => ({
+              id: `${item.time}-${item.kind}-${item.text}`,
+              time: item.time,
+              title: item.kind,
+              body: stripShowcaseSamplePrefix(item.text),
+              meta: "agent log",
+            }))} /> : <ShowcaseEmpty text="今日暂无临时活动记录" />}
+          </DailyCard>
+        </aside>
+      </section>
+
+      <section className="showcase-bottom">
+        <DailyCard title="Next Actions">
+          {nextActions.length ? <div className="compact-list">
+            {nextActions.slice(0, 4).map((item) => (
+              <article key={`${item.title}-${item.priority}`} className="next-action">
+                <div><strong>{item.title}</strong><span>{item.priority}</span></div>
+                <p>{stripShowcaseSamplePrefix(item.summary)}</p>
+              </article>
+            ))}
+          </div> : <ShowcaseEmpty text="暂无下一步建议" />}
+        </DailyCard>
+        <DailyCard title="Tool Calls">
+          {toolCalls.length ? <div className="tool-call-grid showcase-tool-grid">
+            {toolCalls.slice(0, 6).map((item) => (
+              <article key={item.id} className="tool-call-card">
+                <div className="tool-call-head">
+                  <span className="mono">{item.tool_name}</span>
+                  <span className={`mini-status mini-status-${item.status}`}>{item.status}</span>
+                </div>
+                <div className="tool-call-time">{item.time}</div>
+                <p>{stripShowcaseSamplePrefix(item.summary)}</p>
+              </article>
+            ))}
+          </div> : <ShowcaseEmpty text="今日暂无工具调用" />}
+        </DailyCard>
+        <DailyCard title="Failures / Needs Approval">
+          <div className="compact-list">
+            {[...failures, ...needsApproval].length ? [...failures, ...needsApproval].slice(0, 4).map((item) => (
+              <MissionItem key={`showcase-attention-${item.id}`} item={item} compact />
+            )) : <ShowcaseEmpty text="今日暂无失败或待确认任务" />}
+          </div>
+        </DailyCard>
+      </section>
+    </main>
+  );
+}
+
+function ShowcaseEmpty(props: { text: string }): React.ReactElement {
+  return <div className="showcase-empty">{props.text}</div>;
+}
+
+function cleanShowcaseMission(item: DailyWorkspaceSnapshot["missions"][number]): DailyWorkspaceSnapshot["missions"][number] {
+  return {
+    ...item,
+    summary: stripShowcaseSamplePrefix(item.summary),
+  };
+}
+
+function stripShowcaseSamplePrefix(value: string): string {
+  return value.replace(/^Sample:\s*/i, "");
+}
+
+function isRealShowcaseItem(item: unknown): boolean {
+  if (!item || typeof item !== "object") return false;
+  const record = item as Record<string, unknown>;
+  if (record.is_sample === true) return false;
+  const searchable = [
+    record.source,
+    record.note,
+    record.label,
+    record.title,
+    record.summary,
+    record.text,
+  ].map((value) => String(value ?? ""));
+  return !searchable.some(isShowcaseSampleText);
+}
+
+function isShowcaseSampleText(value: string): boolean {
+  const text = value.trim().toLowerCase();
+  if (!text) return false;
+  return text.startsWith("sample:")
+    || text.includes("sample fallback")
+    || text === "sample"
+    || text === "sample day"
+    || text.includes("岗位监控")
+    || text.includes("telegram 摘要")
+    || text.includes("记忆整理")
+    || text.includes("配置 vps")
+    || text.includes("补充 nango")
+    || text.includes("connector 凭据缺失");
+}
+
+function DailyWorkspacePanel(props: {
+  snapshot: DailyWorkspaceSnapshot | null;
+  selectedDate: string;
+  onSelectDate(date: string): void;
+}): React.ReactElement {
+  const snapshot = props.snapshot;
+  if (!snapshot) {
+    return <div className="daily-workspace daily-loading"><div className="glass-card">Loading daily workspace...</div></div>;
+  }
+  return (
+    <div className="daily-workspace">
+      <section className="daily-hero glass-card">
+        <div>
+          <div className="daily-kicker">Daily Agent Workspace</div>
+          <h1>{snapshot.agent_name}</h1>
+          <p>{snapshot.perspective}</p>
+          <div className="daily-hero-meta">
+            <span className={`daily-status daily-status-${snapshot.status}`}>{snapshot.status}</span>
+            <span>{snapshot.date}</span>
+            <span>{snapshot.status_text}</span>
+            {snapshot.is_sample && <span className="sample-badge">Sample fallback: {snapshot.sample_fallback_fields.join(", ")}</span>}
+          </div>
+        </div>
+        <ArchiveIndex snapshot={snapshot} selectedDate={props.selectedDate} onSelectDate={props.onSelectDate} />
+      </section>
+
+      <div className="daily-grid">
+        <DailyCard title="Missions" className="daily-card-wide">
+          <div className="mission-list">
+            {snapshot.missions.map((item) => <MissionItem key={item.id} item={item} />)}
+          </div>
+        </DailyCard>
+        <DailyCard title="Ephemera">
+          <TimelineList items={snapshot.ephemera.map((item) => ({
+            id: `${item.time}-${item.kind}-${item.text}`,
+            time: item.time,
+            title: item.kind,
+            body: item.text,
+            meta: item.is_sample ? "sample" : item.source,
+          }))} />
+        </DailyCard>
+        <DailyCard title="Memory">
+          <TimelineList items={snapshot.memory_items.map((item) => ({
+            id: item.id,
+            time: item.time,
+            title: item.title,
+            body: item.summary,
+            meta: `${item.type} · ${item.status}${item.is_sample ? " · sample" : ""}`,
+          }))} />
+        </DailyCard>
+        <DailyCard title="Tool Calls" className="daily-card-wide">
+          <div className="tool-call-grid">
+            {snapshot.tool_calls.map((item) => (
+              <article key={item.id} className="tool-call-card">
+                <div className="tool-call-head">
+                  <span className="mono">{item.tool_name}</span>
+                  <span className={`mini-status mini-status-${item.status}`}>{item.status}</span>
+                </div>
+                <div className="tool-call-time">{item.time} · {item.phase || item.source}</div>
+                <p>{item.summary}</p>
+              </article>
+            ))}
+          </div>
+        </DailyCard>
+        <DailyCard title="Failures / Needs Approval">
+          <div className="compact-list">
+            {[...snapshot.failures, ...snapshot.needs_approval].length ? [...snapshot.failures, ...snapshot.needs_approval].map((item) => (
+              <MissionItem key={`attention-${item.id}`} item={item} compact />
+            )) : <div className="daily-empty">暂无失败或待确认事项。</div>}
+          </div>
+        </DailyCard>
+        <DailyCard title="Next Actions">
+          <div className="compact-list">
+            {snapshot.next_actions.map((item) => (
+              <article key={`${item.title}-${item.priority}`} className="next-action">
+                <div><strong>{item.title}</strong><span>{item.priority}</span></div>
+                <p>{item.summary}</p>
+              </article>
+            ))}
+          </div>
+        </DailyCard>
+      </div>
+    </div>
+  );
+}
+
+function ArchiveIndex(props: {
+  snapshot: DailyWorkspaceSnapshot;
+  selectedDate: string;
+  onSelectDate(date: string): void;
+}): React.ReactElement {
+  return (
+    <div className="archive-index">
+      <div className="archive-title">Archive Index</div>
+      <div className="archive-days">
+        {props.snapshot.archive_dates.map((item) => (
+          <button key={item.date} className={props.selectedDate === item.date ? "active" : ""} type="button" onClick={() => props.onSelectDate(item.date)}>
+            <span>{item.label}</span>
+            <strong>{item.has_real_data ? `${item.count} logs` : "sample"}</strong>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DailyCard(props: { title: string; className?: string; children: React.ReactNode }): React.ReactElement {
+  return <section className={`glass-card daily-card ${props.className ?? ""}`}><h2>{props.title}</h2>{props.children}</section>;
+}
+
+function MissionItem(props: { item: { title: string; status: string; time: string; summary: string; source: string; is_sample: boolean }; compact?: boolean }): React.ReactElement {
+  return (
+    <article className={`mission-item ${props.compact ? "compact" : ""}`}>
+      <div className="mission-time">{props.item.time}</div>
+      <div className="mission-body">
+        <div className="mission-head">
+          <strong>{props.item.title}</strong>
+          <span className={`mission-status mission-status-${props.item.status}`}>{props.item.status}</span>
+        </div>
+        <p>{props.item.summary}</p>
+        <div className="mission-source">{props.item.is_sample ? "sample fallback" : props.item.source}</div>
+      </div>
+    </article>
+  );
+}
+
+function TimelineList(props: { items: { id: string; time: string; title: string; body: string; meta: string }[] }): React.ReactElement {
+  return <div className="timeline-list">{props.items.map((item) => (
+    <article key={item.id} className="timeline-item">
+      <span>{item.time}</span>
+      <div><strong>{item.title}</strong><p>{item.body}</p><em>{item.meta}</em></div>
+    </article>
+  ))}</div>;
+}
+
 function KnowledgePanel(props: {
   documents: KnowledgeDocumentRow[];
   chunks: KnowledgeChunkRow[];
@@ -1085,6 +1461,7 @@ function columnCellClass(column: DashboardColumn): string {
 
 function tableMeta(viewMode: ViewMode, totalMessages: number, proactiveTotal: number, plugin: PluginConfig | null, pluginState: PluginState | null, proactiveSessionFilter: string): string {
   if (plugin && pluginState) return plugin.countTitle ? plugin.countTitle(pluginState.total) : `共 ${pluginState.total} 条`;
+  if (viewMode === "daily") return "Daily Agent Workspace";
   if (viewMode === "knowledge") return "Document RAG 知识库";
   if (viewMode === "proactive") return proactiveSessionFilter ? `共 ${proactiveTotal} 条 tick · session: ${proactiveSessionFilter}` : `共 ${proactiveTotal} 条 tick`;
   return `共 ${totalMessages} 条`;
@@ -1103,6 +1480,7 @@ function proactiveSectionCount(section: string, overview: ProactiveOverview | nu
 
 function viewLabel(viewMode: ViewMode, plugin: PluginConfig | null): string {
   if (plugin) return plugin.viewLabel || plugin.label;
+  if (viewMode === "daily") return "daily";
   if (viewMode === "knowledge") return "knowledge";
   if (viewMode === "proactive") return "proactive";
   return "messages";

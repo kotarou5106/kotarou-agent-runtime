@@ -1,5 +1,5 @@
 export type SortOrder = "asc" | "desc";
-export type BuiltinView = "sessions" | "proactive" | "knowledge";
+export type BuiltinView = "sessions" | "proactive" | "knowledge" | "daily";
 export type ViewMode = BuiltinView | `plugin:${string}`;
 
 export interface PageResult<T> {
@@ -109,6 +109,82 @@ export interface KnowledgeRetrievalEventRow {
   injected_chunk_ids: string[];
   trace?: Record<string, unknown>;
   created_at: string;
+}
+
+export interface DailyArchiveDate {
+  date: string;
+  label: string;
+  count: number;
+  has_real_data: boolean;
+}
+
+export interface DailyMission {
+  id: string;
+  title: string;
+  status: "completed" | "pending" | "failed" | "needs_approval" | string;
+  time: string;
+  summary: string;
+  source: string;
+  is_sample: boolean;
+}
+
+export interface DailyEphemera {
+  time: string;
+  kind: string;
+  text: string;
+  source: string;
+  is_sample: boolean;
+}
+
+export interface DailyMemoryItem {
+  id: string;
+  time: string;
+  title: string;
+  summary: string;
+  type: string;
+  status: string;
+  source: string;
+  is_sample: boolean;
+}
+
+export interface DailyToolCall {
+  id: string;
+  tool_name: string;
+  time: string;
+  status: string;
+  summary: string;
+  phase: string;
+  source: string;
+  is_sample: boolean;
+}
+
+export interface DailyNextAction {
+  title: string;
+  summary: string;
+  priority: string;
+  source: string;
+  is_sample: boolean;
+}
+
+export interface DailyWorkspaceSnapshot {
+  date: string;
+  archive_dates: DailyArchiveDate[];
+  agent_name: string;
+  status: "running" | "idle" | "degraded" | string;
+  status_text: string;
+  perspective: string;
+  missions: DailyMission[];
+  ephemera: DailyEphemera[];
+  memory_items: DailyMemoryItem[];
+  tool_calls: DailyToolCall[];
+  failures: DailyMission[];
+  needs_approval: DailyMission[];
+  next_actions: DailyNextAction[];
+  is_sample: boolean;
+  no_real_data?: boolean;
+  sample_fallback_fields: string[];
+  sources: Record<string, string>;
+  totals: Record<string, number>;
 }
 
 export interface DashboardColumn {
