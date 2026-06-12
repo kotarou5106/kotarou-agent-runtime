@@ -111,7 +111,6 @@ class AppRuntime:
             self.peer_process_manager = self.core.peer_process_manager
             self.peer_poller = self.core.peer_poller
             await self.core.start()
-            self._register_telegram_job_monitor_task()
             self._register_telegram_daily_tasks()
 
             plugin_manager = getattr(self.core, "plugin_manager", None)
@@ -175,7 +174,11 @@ class AppRuntime:
             raise
 
     def _register_telegram_job_monitor_task(self) -> None:
-        monitor_cfg = self.config.proactive.telegram_job_monitor
+        proactive_cfg = getattr(self.config, "proactive", None)
+        if proactive_cfg is None:
+            return
+
+        monitor_cfg = proactive_cfg.telegram_job_monitor
         if not monitor_cfg.enabled:
             return
         if not monitor_cfg.target_chat_id:
@@ -222,16 +225,19 @@ class AppRuntime:
         )
 
     def _register_telegram_daily_tasks(self) -> None:
+        proactive_cfg = getattr(self.config, "proactive", None)
+        if proactive_cfg is None:
+            return
         if self.scheduler is None:
             logger.warning("[telegram_daily_tasks] scheduler unavailable; tasks not registered")
             return
 
-        summary_cfg = self.config.proactive.telegram_daily_summary
+        summary_cfg = proactive_cfg.telegram_daily_summary
         if summary_cfg.enabled:
             send_channel, send_chat_id = _resolve_send_target(
                 summary_cfg.send_to or summary_cfg.target_chat_id,
-                self.config.proactive.default_channel,
-                self.config.proactive.default_chat_id,
+                proactive_cfg.default_channel,
+                proactive_cfg.default_chat_id,
             )
             if not send_channel or not send_chat_id:
                 logger.warning(
@@ -290,12 +296,12 @@ class AppRuntime:
                     len(summary_cfg.summary_targets),
                 )
 
-        greeting_cfg = self.config.proactive.telegram_morning_greeting
+        greeting_cfg = proactive_cfg.telegram_morning_greeting
         if greeting_cfg.enabled:
             send_channel, send_chat_id = _resolve_send_target(
                 greeting_cfg.send_to or greeting_cfg.target_chat_id,
-                self.config.proactive.default_channel,
-                self.config.proactive.default_chat_id,
+                proactive_cfg.default_channel,
+                proactive_cfg.default_chat_id,
             )
             if not send_channel or not send_chat_id:
                 logger.warning(
@@ -339,12 +345,12 @@ class AppRuntime:
                     send_chat_id,
                 )
 
-        audio_cfg = self.config.proactive.telegram_audio_collector
+        audio_cfg = proactive_cfg.telegram_audio_collector
         if audio_cfg.enabled:
             send_channel, send_chat_id = _resolve_send_target(
                 audio_cfg.send_to or audio_cfg.target_chat_id,
-                self.config.proactive.default_channel,
-                self.config.proactive.default_chat_id,
+                proactive_cfg.default_channel,
+                proactive_cfg.default_chat_id,
             )
             if not send_channel or not send_chat_id:
                 logger.warning(
@@ -409,6 +415,10 @@ class AppRuntime:
                 )
 
     async def run_telegram_daily_task_command(self, task_name: str, chat_id: str) -> None:
+        proactive_cfg = getattr(self.config, "proactive", None)
+        if proactive_cfg is None:
+            raise RuntimeError("proactive config is unavailable")
+
         if task_name == "telegram_daily_tasks":
             for name in (
                 "telegram_daily_summary",
@@ -423,7 +433,7 @@ class AppRuntime:
                     send_channel = (
                         self.config.channels.telegram.channel_name
                         if self.config.channels.telegram is not None
-                        else self.config.proactive.default_channel
+                        else proactive_cfg.default_channel
                     )
                     await self.push_tool.execute(
                         channel=send_channel,
@@ -437,11 +447,11 @@ class AppRuntime:
         send_channel = (
             self.config.channels.telegram.channel_name
             if self.config.channels.telegram is not None
-            else self.config.proactive.default_channel
+            else proactive_cfg.default_channel
         )
 
         if task_name == "telegram_daily_summary":
-            summary_cfg = self.config.proactive.telegram_daily_summary
+            summary_cfg = proactive_cfg.telegram_daily_summary
             from agent_runtime.background.telegram_daily_tasks import (
                 TelegramDailySummaryConfig,
                 TelegramTarget,
@@ -472,7 +482,7 @@ class AppRuntime:
             return
 
         if task_name == "morning_greeting":
-            greeting_cfg = self.config.proactive.telegram_morning_greeting
+            greeting_cfg = proactive_cfg.telegram_morning_greeting
             from agent_runtime.background.telegram_daily_tasks import (
                 MorningGreetingConfig,
                 run_telegram_morning_greeting_once,
@@ -493,7 +503,7 @@ class AppRuntime:
             return
 
         if task_name == "telegram_audio_collector":
-            audio_cfg = self.config.proactive.telegram_audio_collector
+            audio_cfg = proactive_cfg.telegram_audio_collector
             from agent_runtime.background.telegram_daily_tasks import (
                 TelegramAudioCollectorConfig,
                 TelegramTarget,

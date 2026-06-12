@@ -297,6 +297,7 @@ def test_config_load_accepts_dev_model_alias(tmp_path: Path):
 
 
 def test_config_load_skips_unfilled_channels(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "")
     cfg_path = tmp_path / "config.toml"
     _write_toml(
         cfg_path,

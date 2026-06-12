@@ -169,9 +169,6 @@ include_original_links = true
 summary_targets = [
   { chat_title = "Web3万事屋（招聘&求职&资源分享）", chat_id = -1002535833398, topic_id = 6631, expected_topic_title = "吃瓜闲聊-禁发招聘" },
 ]
-summary_targets = [
-  { chat_title = "Web3万事屋（招聘&求职&资源分享）", chat_id = -1002535833398, topic_id = 6631, expected_topic_title = "吃瓜闲聊-禁发招聘" },
-]
 
 [morning_greeting]
 enabled = false

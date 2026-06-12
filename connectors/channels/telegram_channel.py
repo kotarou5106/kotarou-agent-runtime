@@ -145,8 +145,9 @@ class TelegramChannel:
         self._app = builder.build()
         self._bot_commands = bot_commands or []
         self._app.add_handler(CommandHandler("stop", self._on_stop_command))
-        for command in _DAILY_TASK_COMMANDS:
-            self._app.add_handler(CommandHandler(command, self._on_daily_task_command))
+        if self._daily_task_runner is not None:
+            for command in _DAILY_TASK_COMMANDS:
+                self._app.add_handler(CommandHandler(command, self._on_daily_task_command))
         self._app.add_handler(
             MessageHandler(filters.COMMAND, self._on_command)
         )
@@ -293,16 +294,22 @@ class TelegramChannel:
         )
 
     async def _register_bot_commands(self) -> None:
+        command_specs = list(self._bot_commands)
+
+        if self._daily_task_runner is not None:
+            command_specs.extend(
+                [
+                    ("daily_summary", "手动触发 Telegram 每日群话题总结"),
+                    ("morning_greeting", "手动生成早安鼓励消息"),
+                    ("audio_collect", "手动采集配置频道中的音频"),
+                    ("daily_tasks", "依次执行每日总结、早安和音频采集"),
+                ]
+            )
+
+        command_specs.append(("stop", "中断当前回复"))
         commands = [
             BotCommand(command, description)
-            for command, description in [
-                *self._bot_commands,
-                ("daily_summary", "手动触发 Telegram 每日群话题总结"),
-                ("morning_greeting", "手动生成早安鼓励消息"),
-                ("audio_collect", "手动采集配置频道中的音频"),
-                ("daily_tasks", "依次执行每日总结、早安和音频采集"),
-                ("stop", "中断当前回复"),
-            ]
+            for command, description in command_specs
         ]
         await self._app.bot.set_my_commands(commands)
 
@@ -495,13 +502,19 @@ class TelegramChannel:
                 if command in _DAILY_TASK_COMMANDS:
                     await self._on_daily_task_command(update, context)
                     return
-                await send_markdown(
-                    self._app.bot,
-                    str(chat.id),
-                    f"未知命令：/{command}。请一次只发送一个已支持的命令。",
-                    self._telegram_outbound_limiter,
-                )
-                return
+
+                known_bot_commands = {
+                    str(command_name).lstrip("/").split("@", 1)[0].split()[0]
+                    for command_name, _description in self._bot_commands
+                }
+                if command not in known_bot_commands:
+                    await send_markdown(
+                        self._app.bot,
+                        str(chat.id),
+                        f"未知命令：/{command}。请一次只发送一个已支持的命令。",
+                        self._telegram_outbound_limiter,
+                    )
+                    return
 
             message_id = int(getattr(msg, "message_id", 0) or 0)
             deduper = getattr(self, "_message_deduper", None)
@@ -648,7 +661,12 @@ class TelegramChannel:
             return
         if slash_lines:
             command = slash_lines[0].lstrip("/").split("@", 1)[0].split()[0]
-            if command not in _KNOWN_COMMANDS:
+            known_bot_commands = {
+                str(command_name).lstrip("/").split("@", 1)[0].split()[0]
+                for command_name, _description in getattr(self, "_bot_commands", [])
+            }
+            known_commands = set(_KNOWN_COMMANDS) | known_bot_commands
+            if command not in known_commands:
                 await send_markdown(
                     self._app.bot,
                     str(chat.id),
