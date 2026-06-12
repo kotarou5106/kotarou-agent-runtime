@@ -9,6 +9,7 @@ from agent_runtime.context import ContextBuilder
 from agent_runtime.lifecycle.facade import TurnLifecycle
 from agent_runtime.tools.base import Tool
 from bootstrap.toolsets.mcp import McpToolsetProvider
+from bootstrap.toolsets.nango import NangoToolsetProvider
 from bootstrap.toolsets.memory import MemoryToolsetProvider
 from bootstrap.toolsets.meta import CommonMetaToolsetProvider, SpawnToolsetProvider
 from bootstrap.toolsets.protocol import ToolsetProvider
@@ -45,6 +46,7 @@ _TOOLSET_WIRING: dict[str, ToolsetProviderFactory] = {
     "spawn": SpawnToolsetProvider,
     "schedule": SchedulerToolsetProvider,
     "mcp": McpToolsetProvider,
+    "nango": NangoToolsetProvider,
 }
 
 
